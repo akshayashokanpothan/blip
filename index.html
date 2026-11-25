@@ -291,11 +291,13 @@
         </button>
         <div class="settings-group">
           <label class="setting-row"><span class="grow"><strong>Date</strong></span><input id="tf-date" type="date" aria-label="Date"></label>
-          <label class="setting-row"><span class="grow"><strong>Time</strong></span><input id="tf-time" type="time" aria-label="Time"></label>
+          <label class="setting-row"><span class="grow"><strong>Start time</strong></span><input id="tf-time" type="time" aria-label="Start time"></label>
+          <label class="setting-row"><span class="grow"><strong>End time</strong><span class="hint">Optional</span></span><input id="tf-end" type="time" aria-label="End time"></label>
           <div class="setting-row"><span class="grow"><strong>Priority</strong></span>
-            <div class="prio" role="group" aria-label="Priority" style="width:180px">
-              <button type="button" data-prio="normal" class="on">Normal</button>
-              <button type="button" data-prio="high">High</button>
+            <div class="prio-row" role="group" aria-label="Priority">
+              <button type="button" class="prio-chip p-high" data-prio="high"><span class="dot"></span>Urgent</button>
+              <button type="button" class="prio-chip p-medium on" data-prio="medium"><span class="dot"></span>Moderate</button>
+              <button type="button" class="prio-chip p-low" data-prio="low"><span class="dot"></span>Low</button>
             </div>
           </div>
           <label class="setting-row"><span class="grow"><strong>Reminder</strong><span class="hint">Notifies you 10 minutes before</span></span>
@@ -539,11 +541,18 @@
     </div>
 
     <div id="cap-confirm" class="cap-panel review" hidden>
-      <p class="section-label" style="margin:0">You said</p>
+      <div class="said-head">
+        <p class="section-label" style="margin:0">You said</p>
+        <button id="cap-edit-said" class="said-edit" type="button" aria-label="Edit what you said">Edit</button>
+      </div>
       <blockquote id="cap-transcript" class="quote"></blockquote>
+      <div id="cap-transcript-edit" class="said-box" hidden>
+        <textarea id="cap-said-input" rows="3" aria-label="Edit what you said"></textarea>
+        <button id="cap-said-update" class="btn primary" type="button">Update tasks</button>
+      </div>
       <p class="section-label" style="margin:12px 0 0">Tasks</p>
       <ul id="cap-items" class="cap-list"></ul>
-      <p class="cap-tip">Check the date and time before you add. Blip never guesses a time it didn’t hear.</p>
+      <p class="cap-tip">Every task needs a start time. End time is optional. Blip never guesses a time it didn’t hear.</p>
       <div class="cap-actions">
         <button id="cap-cancel" class="btn secondary" type="button">Cancel</button>
         <button id="cap-add" class="btn primary" type="button">Add to Blip</button>

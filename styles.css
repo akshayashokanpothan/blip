@@ -22,6 +22,15 @@
   --ok: var(--blip-success);
   --focus: var(--blip-focus);
   --red: #B42318;
+  /* Priority accents: Urgent red, Moderate yellow, Low green. */
+  --p-high: #D92D20;
+  --p-high-bg: #FDECEA;
+  --p-medium: #8A6100;
+  --p-medium-dot: #E5A800;
+  --p-medium-bg: #FFF5D6;
+  --p-low: #1E7A46;
+  --p-low-dot: #2E9E5B;
+  --p-low-bg: #E4F4EA;
   --font: var(--blip-font-ui);
   --display: var(--blip-font-display);
   --brand-weight: 700;
@@ -60,6 +69,14 @@
   --ok: #A9CBA0;
   --focus: #C9C6BC;
   --red: #F08A7E;
+  --p-high: #F4978C;
+  --p-high-bg: rgba(240, 138, 126, 0.16);
+  --p-medium: #F2CC63;
+  --p-medium-dot: #F2C94C;
+  --p-medium-bg: rgba(242, 201, 76, 0.14);
+  --p-low: #7FD3A0;
+  --p-low-dot: #6FCF97;
+  --p-low-bg: rgba(111, 207, 151, 0.14);
   --shadow: none;
   --fab-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
 }
@@ -456,6 +473,33 @@ main {
 .cap-fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
 .cap-fields input, .cap-fields select { width: 100%; height: 40px; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0 10px; font-size: 14px; color: var(--ink); background: var(--card); }
 .cap-meta { display: flex; align-items: center; gap: 8px; }
+.cap-fields .full { grid-column: 1 / -1; }
+.cap-fields .req { color: var(--p-high); font-weight: 600; }
+.cap-fields .opt { color: var(--muted); opacity: 0.8; }
+.cap-fields input.invalid { border-color: var(--p-high); box-shadow: 0 0 0 3px var(--p-high-bg); }
+
+/* Priority chips (review screen and task detail) and list tags. */
+.prio-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.prio-chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); font-size: 14px; color: var(--muted); background: transparent; }
+.prio-chip .dot, .tag-prio .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.p-high .dot { background: var(--p-high); }
+.p-medium .dot { background: var(--p-medium-dot); }
+.p-low .dot { background: var(--p-low-dot); }
+.prio-chip.on { font-weight: var(--sub-weight); border-color: transparent; }
+.prio-chip.p-high.on { background: var(--p-high-bg); color: var(--p-high); box-shadow: inset 0 0 0 1px var(--p-high); }
+.prio-chip.p-medium.on { background: var(--p-medium-bg); color: var(--p-medium); box-shadow: inset 0 0 0 1px var(--p-medium-dot); }
+.prio-chip.p-low.on { background: var(--p-low-bg); color: var(--p-low); box-shadow: inset 0 0 0 1px var(--p-low-dot); }
+.tag-prio { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: var(--sub-weight); padding: 2px 8px; border-radius: 999px; }
+.tag-prio.p-high { color: var(--p-high); background: var(--p-high-bg); }
+.tag-prio.p-medium { color: var(--p-medium); background: var(--p-medium-bg); }
+.tag-prio.p-low { color: var(--p-low); background: var(--p-low-bg); }
+
+/* "You said" header with its Edit button, and the edit box. */
+.said-head { display: flex; align-items: center; justify-content: space-between; }
+.said-edit { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); font-size: 13px; font-weight: var(--sub-weight); color: var(--ink); }
+.said-box { display: flex; flex-direction: column; gap: 8px; }
+.said-box textarea { width: 100%; border: 1px solid var(--border); border-radius: var(--r-card); padding: 14px 16px; background: var(--card); color: var(--ink); font-family: var(--display); font-size: 17px; line-height: 1.45; outline: none; resize: vertical; }
+.said-box textarea:focus { border-color: var(--focus); }
 .cap-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 8px; position: sticky; bottom: 0; background: var(--bg); padding: 8px 0 4px; }
 
 .cap-tip { margin: 0; font-size: 13px; color: var(--muted); }

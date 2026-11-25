@@ -23,7 +23,7 @@ Host the folder on any static host (GitHub Pages, Netlify, Vercel, Cloudflare Pa
 
 ## Using it
 
-- **Add:** type or tap the mic and speak. Commas, "then", and new lines split a note into separate tasks. Words like "urgent", "asap", or "important" mark a task high priority (red dot).
+- **Add:** type or tap the mic and speak. Commas, "then", and new lines split a note into separate tasks. Voice waits about 3 seconds after your last word before it stops, so short pauses don't cut you off. Every task has a start time (required), an optional end time, and a priority: Urgent (red), Moderate (yellow) or Low (green). Words like "urgent" or "asap" set Urgent, and "no rush" sets Low.
 - **Complete:** tap the circle.
 - **Edit:** tap the task text, type, press return.
 - **Delete:** swipe left, then tap Delete.

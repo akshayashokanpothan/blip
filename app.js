@@ -31,10 +31,21 @@ function normalizeTask(t) {
     repeat: 'none',
     notes: '',
     notified: false,
-    priority: 'normal',
+    priority: 'medium',
     done: false,
+    endTime: '',
     ...t,
+    priority: normPriority(t.priority),
   };
+}
+
+// Three priorities: Urgent (red), Moderate (yellow), Low (green).
+// Older tasks used 'normal', which maps to Moderate.
+const PRIORITIES = [['high', 'Urgent'], ['medium', 'Moderate'], ['low', 'Low']];
+const PRIORITY_LABEL = Object.fromEntries(PRIORITIES);
+const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
+function normPriority(p) {
+  return PRIORITY_RANK[p] !== undefined ? p : 'medium';
 }
 
 let tasks = loadJSON(TASKS_KEY, []).map(normalizeTask);
@@ -90,7 +101,7 @@ const SLOTS = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' }
 const SLOT_TIME = { morning: '08:00', afternoon: '13:00', evening: '18:00' };
 function whenText(t) {
   const parts = [dateLabel(t.date)];
-  if (t.time) parts.push(fmtTime(t.time));
+  if (t.time) parts.push(t.endTime ? `${fmtTime(t.time)} – ${fmtTime(t.endTime)}` : fmtTime(t.time));
   else if (t.slot) parts.push(SLOTS[t.slot]);
   return parts.join(' · ');
 }
@@ -179,8 +190,28 @@ function extractWhen(s, now = new Date()) {
     text = text.replace(m[0], ' ');
   }
 
-  const tm = text.match(/\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?![a-z])/i)
-    || text.match(/\bat\s+(\d{1,2})(?::(\d{2}))?()\b/i);
+  // A range like "from 6 to 7 pm" or "6-7:30pm" sets a start and end time.
+  let endTime = '';
+  const rg = text.match(/\b(?:from\s+)?(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|–|to|till|until)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?![a-z])/i);
+  if (rg) {
+    const merEnd = rg[6].toLowerCase().replace(/\./g, '');
+    const merStart = (rg[3] || '').toLowerCase().replace(/\./g, '') || merEnd;
+    const to24 = (h, m, mer) => {
+      h = Number(h);
+      if (h > 12 || Number(m || 0) > 59) return '';
+      if (mer.startsWith('p') && h < 12) h += 12;
+      else if (mer.startsWith('a') && h === 12) h = 0;
+      return `${pad(h)}:${pad(Number(m || 0))}`;
+    };
+    time = to24(rg[1], rg[2], merStart);
+    endTime = to24(rg[4], rg[5], merEnd);
+    if (time && endTime && endTime <= time && !rg[3]) time = to24(rg[1], rg[2], merEnd === 'pm' ? 'am' : 'pm');
+    if (!time || !endTime || endTime <= time) endTime = '';
+    text = text.replace(rg[0], ' ');
+  }
+
+  const tm = !time && (text.match(/\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?![a-z])/i)
+    || text.match(/\bat\s+(\d{1,2})(?::(\d{2}))?()\b/i));
   if (tm) {
     let h = Number(tm[1]);
     const min = Number(tm[2] || 0);
@@ -201,7 +232,7 @@ function extractWhen(s, now = new Date()) {
     text = text.replace(sm[0], ' ');
   }
 
-  return { text, date, time, slot: time ? '' : slot };
+  return { text, date, time, endTime, slot: time ? '' : slot };
 }
 
 function parseLocal(input) {
@@ -227,8 +258,10 @@ function parseLocal(input) {
       continue;
     }
 
-    const priority = /\b(urgent|asap|important)\b/i.test(s) ? 'high' : 'normal';
-    const withoutPriority = s.replace(/\b(urgent|asap|important)\b/gi, ' ');
+    const HIGH = /\b(urgent|urgently|asap|important|high priority)\b/gi;
+    const LOW = /\b(low priority|no rush|whenever|not urgent|sometime)\b/gi;
+    const priority = HIGH.test(s) ? 'high' : LOW.test(s) ? 'low' : 'medium';
+    const withoutPriority = s.replace(HIGH, ' ').replace(LOW, ' ');
     const when = extractWhen(withoutPriority);
     let text = when.text.replace(/\s+/g, ' ').replace(/^\s*(on|by|at|in)\s+/i, '').trim();
     for (let i = 0; i < 2; i++) text = text.replace(FILLER, '');
@@ -240,6 +273,7 @@ function parseLocal(input) {
         priority,
         date: when.date || todayKey(),
         time: when.time,
+        endTime: when.endTime,
         slot: when.slot,
       });
     }
@@ -255,11 +289,11 @@ async function parseWithLLM(input, apiKey) {
     'You convert a short typed or speech-recognized note into JSON actions for a personal to-do app.',
     'Return ONLY a JSON object: {"actions":[...]}.',
     'Action types:',
-    '{"type":"add","text":"short task, under 10 words","priority":"normal"|"high","date":"YYYY-MM-DD or null","time":"HH:MM 24-hour or null","slot":"morning"|"afternoon"|"evening"|null}',
+    '{"type":"add","text":"short task, under 10 words","priority":"high"|"medium"|"low","date":"YYYY-MM-DD or null","time":"HH:MM 24-hour start time or null","endTime":"HH:MM 24-hour end time or null","slot":"morning"|"afternoon"|"evening"|null}',
     '{"type":"done","match":"words identifying an existing task"}',
     '{"type":"delete","match":"words identifying an existing task"}',
     '{"type":"rename","match":"existing task","text":"new text"}',
-    'Split separate tasks into separate add actions. Fix obvious speech-recognition errors. Mark urgent or important items as high priority.',
+    'Split separate tasks into separate add actions. Fix obvious speech-recognition errors. Mark urgent or important items as high priority, things with no rush as low, and everything else as medium.',
     'Only set date, time or slot when the speaker said them. Never guess a time. Use null when unsure.',
     `Today is ${today}. Tomorrow is ${addDays(today, 1)}.`,
   ].join('\n');
@@ -296,6 +330,8 @@ async function parseWithLLM(input, apiKey) {
       ...a,
       date: /^\d{4}-\d{2}-\d{2}$/.test(a.date || '') ? a.date : today,
       time: /^\d{2}:\d{2}$/.test(a.time || '') ? a.time : '',
+      endTime: /^\d{2}:\d{2}$/.test(a.endTime || '') && /^\d{2}:\d{2}$/.test(a.time || '') && a.endTime > a.time ? a.endTime : '',
+      priority: normPriority(a.priority === 'normal' ? 'medium' : a.priority),
       slot: SLOTS[a.slot] ? a.slot : '',
     };
   });
@@ -308,10 +344,11 @@ function makeTask(p) {
   const task = normalizeTask({
     id: uid(),
     text: p.text,
-    priority: p.priority === 'high' ? 'high' : 'normal',
+    priority: normPriority(p.priority),
     done: false,
     date,
     time,
+    endTime: time && p.endTime && p.endTime > time ? p.endTime : '',
     slot: time ? '' : (p.slot || ''),
     reminder: Boolean(time),
     repeat: p.repeat || 'none',
@@ -337,6 +374,7 @@ function completeTask(t) {
       priority: t.priority,
       date: addDays(t.date, days),
       time: t.time,
+      endTime: t.endTime,
       slot: t.slot,
       repeat: t.repeat,
       notes: t.notes,
@@ -409,10 +447,7 @@ function openCapture(mode = 'voice') {
 
 function closeCapture() {
   captureOpen = false;
-  if (recognizer && listening) {
-    try { recognizer.abort(); } catch { /* already stopped */ }
-  }
-  listening = false;
+  cancelVoice();
   $('#capture').hidden = true;
 }
 
@@ -432,45 +467,53 @@ function buildWave() {
     `<span style="--h:${h}px;animation-delay:${(-i * 0.13).toFixed(2)}s"></span>`).join('');
 }
 
+// How long Blip waits after the last heard word before it treats you as done.
+const SILENCE_MS = 3000;
+// Stops the current listening session without sending what was heard.
+let cancelVoice = () => {};
+
+// Joins recognition results into one transcript. Android Chrome repeats
+// earlier words inside later results, so a result that already contains the
+// previous text replaces it instead of being appended.
+function joinResults(results) {
+  let text = '';
+  for (let i = 0; i < results.length; i++) {
+    const part = results[i][0].transcript.trim();
+    if (!part) continue;
+    const prev = text.toLowerCase();
+    const cur = part.toLowerCase();
+    if (prev && cur.startsWith(prev)) text = part;
+    else if (prev.endsWith(cur)) continue;
+    else text = text ? `${text} ${part}` : part;
+  }
+  return text.trim();
+}
+
 function startListening() {
   setCapTitle('Voice');
   showCapPanel('listen');
   buildWave();
   $('#cap-live').textContent = '';
-  let finalText = '';
+  $('#cap-listen h2').textContent = 'Listening…';
+
+  // Text from earlier recognition sessions, if the browser ended one early.
+  let carried = '';
   let latest = '';
   let handled = false;
+  let silenceTimer = null;
+  let wantStop = false;
+  let rec = null;
 
-  recognizer = new SpeechRec();
-  recognizer.lang = 'en-IN';
-  recognizer.interimResults = true;
-  recognizer.continuous = false;
-
-  recognizer.onstart = () => {
-    listening = true;
-    haptic();
-  };
-
-  recognizer.onresult = (e) => {
-    let interim = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const r = e.results[i];
-      if (r.isFinal) finalText += r[0].transcript;
-      else interim += r[0].transcript;
-    }
-    latest = (finalText + interim).trim();
-    $('#cap-live').textContent = latest;
-  };
-
-  recognizer.onerror = (e) => {
-    if (e.error === 'not-allowed') toast('Allow microphone access in your browser settings.');
-    else if (e.error !== 'no-speech' && e.error !== 'aborted') toast(`Mic error: ${e.error}`);
-  };
-
-  recognizer.onend = () => {
-    listening = false;
-    if (!captureOpen || handled) return;
+  const finish = () => {
+    if (handled || !captureOpen) return;
     handled = true;
+    clearTimeout(silenceTimer);
+    listening = false;
+    if (rec) {
+      rec.onend = null;
+      rec.onresult = null;
+      try { rec.stop(); } catch { /* already stopped */ }
+    }
     if (latest) processText(latest);
     else {
       toast('I didn’t catch that. Try again or type it.');
@@ -478,12 +521,72 @@ function startListening() {
     }
   };
 
+  const armSilence = () => {
+    clearTimeout(silenceTimer);
+    silenceTimer = setTimeout(finish, SILENCE_MS);
+  };
+
+  const begin = () => {
+    rec = new SpeechRec();
+    recognizer = rec;
+    rec.lang = 'en-IN';
+    rec.interimResults = true;
+    rec.continuous = true;
+
+    rec.onstart = () => {
+      if (!listening) haptic();
+      listening = true;
+    };
+
+    rec.onresult = (e) => {
+      const heard = joinResults(e.results);
+      latest = [carried, heard].filter(Boolean).join(' ').trim();
+      $('#cap-live').textContent = latest;
+      // Every new word restarts the countdown, so pauses don't cut you off.
+      armSilence();
+    };
+
+    rec.onerror = (e) => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        wantStop = true;
+        toast('Allow microphone access in your browser settings.');
+      } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
+        toast(`Mic error: ${e.error}`);
+      }
+    };
+
+    // Phones often end a session on a short pause. Unless you tapped stop or
+    // the silence window has passed, start listening again and keep the text.
+    rec.onend = () => {
+      if (handled || !captureOpen) return;
+      carried = latest;
+      if (wantStop) { finish(); return; }
+      try { begin(); } catch { finish(); }
+    };
+
+    rec.start();
+  };
+
   $('#cap-stop').onclick = () => {
-    if (recognizer && listening) recognizer.stop();
+    wantStop = true;
+    finish();
+  };
+
+  cancelVoice = () => {
+    handled = true;
+    clearTimeout(silenceTimer);
+    listening = false;
+    if (rec) {
+      rec.onend = null;
+      rec.onresult = null;
+      try { rec.abort(); } catch { /* already stopped */ }
+    }
   };
 
   try {
-    recognizer.start();
+    begin();
+    // If nothing is said at all, give up after a longer wait.
+    silenceTimer = setTimeout(finish, 8000);
   } catch {
     openTextPanel();
     toast('Couldn’t start the mic. Type instead.');
@@ -491,9 +594,19 @@ function startListening() {
 }
 
 // Turns what was said or typed into tasks, then shows them for review.
+let processing = false;
 async function processText(text) {
   text = text.trim();
-  if (!text) return;
+  if (!text || processing) return;
+  processing = true;
+  try {
+    await runProcess(text);
+  } finally {
+    processing = false;
+  }
+}
+
+async function runProcess(text) {
   captureOpen = true;
   $('#capture').hidden = false;
   setCapTitle('Creating');
@@ -532,55 +645,79 @@ async function processText(text) {
   cap.items = adds.map((a) => ({
     id: uid(),
     text: a.text,
-    priority: a.priority === 'high' ? 'high' : 'normal',
+    priority: normPriority(a.priority),
     date: a.date || todayKey(),
     time: a.time || '',
-    slot: a.time ? '' : (a.slot || ''),
+    endTime: a.time && a.endTime ? a.endTime : '',
   }));
+  cap.editing = false;
   setCapTitle('Review');
   renderConfirm();
   showCapPanel('confirm');
   if (warning) toast(warning.trim());
 }
 
-const SLOT_OPTIONS = [['', 'Any time'], ['morning', 'Morning'], ['afternoon', 'Afternoon'], ['evening', 'Evening']];
+function priorityChips(current) {
+  return PRIORITIES.map(([v, l]) =>
+    `<button class="prio-chip p-${v}${current === v ? ' on' : ''}" type="button" data-act="prio-cap" data-v="${v}" aria-pressed="${current === v}"><span class="dot"></span>${l}</button>`).join('');
+}
 
 function renderConfirm() {
-  $('#cap-transcript').textContent = `“${cap.transcript}”`;
+  renderTranscript();
   $('#cap-items').innerHTML = cap.items.map((it, i) => `
     <li class="cap-item" data-idx="${i}">
       <div class="cap-row">
         <input type="text" data-f="text" value="${esc(it.text)}" aria-label="Task ${i + 1} title">
         <button class="icon-btn" type="button" data-act="edit-cap" aria-label="Edit task ${i + 1}" style="width:36px;height:36px">${ICON.pencil}</button>
       </div>
-      <div class="cap-fields">
-        <label>Date<input type="date" data-f="date" value="${esc(it.date)}"></label>
-        <label>Time<input type="time" data-f="time" value="${esc(it.time)}"></label>
-        <label>Part of day<select data-f="slot">${SLOT_OPTIONS.map(([v, l]) =>
-          `<option value="${v}"${it.slot === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+      <div class="cap-fields three">
+        <label class="full">Date<input type="date" data-f="date" value="${esc(it.date)}"></label>
+        <label><span>Start time <b class="req" aria-hidden="true">*</b></span><input type="time" data-f="time" value="${esc(it.time)}" required${it.missing ? ' class="invalid"' : ''}></label>
+        <label><span>End time <span class="opt">(optional)</span></span><input type="time" data-f="endTime" value="${esc(it.endTime)}"></label>
       </div>
-      <div class="cap-meta">
-        <button class="chip${it.priority === 'high' ? ' on' : ''}" type="button" data-act="priority-cap">${it.priority === 'high' ? 'Urgent' : 'Mark urgent'}</button>
-      </div>
+      <div class="prio-row" role="group" aria-label="Priority">${priorityChips(it.priority)}</div>
     </li>`).join('');
 }
+
+// The "You said" box: read-only quote with an edit button, or a text area.
+function renderTranscript() {
+  $('#cap-transcript').hidden = cap.editing;
+  $('#cap-transcript-edit').hidden = !cap.editing;
+  $('#cap-transcript').textContent = `“${cap.transcript}”`;
+  $('#cap-edit-said').textContent = cap.editing ? 'Cancel' : 'Edit';
+}
+
+$('#cap-edit-said').addEventListener('click', () => {
+  cap.editing = !cap.editing;
+  renderTranscript();
+  if (cap.editing) {
+    const box = $('#cap-said-input');
+    box.value = cap.transcript;
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
+  }
+});
+$('#cap-said-update').addEventListener('click', () => {
+  const text = $('#cap-said-input').value.trim();
+  if (!text) {
+    toast('Type what you want to add');
+    return;
+  }
+  cap.editing = false;
+  processText(text);
+});
 
 // Review screen edits update the data in place, so typing never loses focus.
 $('#cap-items').addEventListener('input', (e) => {
   const li = e.target.closest('[data-idx]');
   const field = e.target.dataset.f;
   if (!li || !field) return;
-  cap.items[Number(li.dataset.idx)][field] = e.target.value;
-});
-$('#cap-items').addEventListener('change', (e) => {
-  const li = e.target.closest('[data-idx]');
-  const field = e.target.dataset.f;
-  if (!li || !field) return;
   const it = cap.items[Number(li.dataset.idx)];
   it[field] = e.target.value;
-  if (field === 'time' && e.target.value) it.slot = '';
-  if (field === 'slot' && e.target.value) it.time = '';
-  if (field === 'time' || field === 'slot') renderConfirm();
+  if (field === 'time' && e.target.value) {
+    it.missing = false;
+    e.target.classList.remove('invalid');
+  }
 });
 $('#cap-items').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-act]');
@@ -589,9 +726,13 @@ $('#cap-items').addEventListener('click', (e) => {
   const it = cap.items[Number(li.dataset.idx)];
   if (btn.dataset.act === 'edit-cap') {
     li.querySelector('input[data-f="text"]').focus();
-  } else if (btn.dataset.act === 'priority-cap') {
-    it.priority = it.priority === 'high' ? 'normal' : 'high';
-    renderConfirm();
+  } else if (btn.dataset.act === 'prio-cap') {
+    it.priority = btn.dataset.v;
+    for (const c of li.querySelectorAll('.prio-chip')) {
+      const on = c.dataset.v === it.priority;
+      c.classList.toggle('on', on);
+      c.setAttribute('aria-pressed', String(on));
+    }
   }
 });
 
@@ -601,13 +742,26 @@ $('#cap-add').addEventListener('click', () => {
     toast('Nothing to add yet.');
     return;
   }
+  // Start time is required; end time is optional but must come after it.
+  const missing = items.filter((i) => !i.time);
+  if (missing.length) {
+    for (const i of missing) i.missing = true;
+    renderConfirm();
+    $('#cap-items input.invalid')?.focus();
+    toast(missing.length === 1 ? 'Add a start time' : `Add a start time for ${missing.length} tasks`);
+    return;
+  }
+  if (items.some((i) => i.endTime && i.endTime <= i.time)) {
+    toast('End time must be after the start time');
+    return;
+  }
   for (const it of items) {
     tasks.push(makeTask({
       text: it.text.trim(),
       priority: it.priority,
       date: it.date || todayKey(),
       time: it.time,
-      slot: it.slot,
+      endTime: it.endTime,
     }));
   }
   const log = applyActions(cap.other);
@@ -624,12 +778,8 @@ $('#cap-add').addEventListener('click', () => {
 $('#cap-cancel').addEventListener('click', closeCapture);
 $('#cap-close').addEventListener('click', closeCapture);
 $('#cap-type').addEventListener('click', () => {
-  // Detach the handler first, so aborting doesn't send half-heard words on.
-  if (recognizer && listening) {
-    recognizer.onend = null;
-    recognizer.abort();
-  }
-  listening = false;
+  // Cancel first, so stopping doesn't send half-heard words on.
+  cancelVoice();
   openTextPanel();
 });
 $('#cap-speak').addEventListener('click', () => startListening());
@@ -643,13 +793,13 @@ $('#cap-input').addEventListener('keydown', (e) => {
 // ---------- rendering ----------
 const sortTasks = (a, b) =>
   (a.done - b.done) ||
-  ((b.priority === 'high') - (a.priority === 'high')) ||
+  (PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]) ||
   (timeKey(a).localeCompare(timeKey(b))) ||
   (a.created - b.created);
 
 function taskHTML(t, { carry = false } = {}) {
   const bell = t.reminder && t.time ? `<span title="Reminder on" aria-label="Reminder on">${ICON.bell}</span>` : '';
-  const high = t.priority === 'high' ? '<span class="tag-high">High</span>' : '';
+  const high = `<span class="tag-prio p-${t.priority}"><span class="dot"></span>${PRIORITY_LABEL[t.priority]}</span>`;
   const repeat = t.repeat && t.repeat !== 'none' ? '<span>· Repeats</span>' : '';
   return `
     <li class="task${t.done ? ' done' : ''}" data-id="${t.id}">
@@ -667,7 +817,7 @@ function taskHTML(t, { carry = false } = {}) {
 const ui = { view: 'home', filter: 'all', query: '', noteQuery: '', backTo: 'tasks' };
 let editingId = null;
 let editingNote = null;
-let tfPriority = 'normal';
+let tfPriority = 'medium';
 let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let calSelected = todayKey();
 
@@ -734,6 +884,7 @@ function renderTaskDetail() {
   $('#tf-done-label').textContent = t.done ? 'Completed · tap to reopen' : 'Mark complete';
   $('#tf-date').value = t.date;
   $('#tf-time').value = t.time || '';
+  $('#tf-end').value = t.endTime || '';
   $('#tf-reminder').checked = Boolean(t.reminder && t.time);
   $('#tf-repeat').value = t.repeat || 'none';
   $('#tf-notes').value = t.notes || '';
@@ -741,7 +892,7 @@ function renderTaskDetail() {
 }
 
 function setPriority(p) {
-  tfPriority = p === 'high' ? 'high' : 'normal';
+  tfPriority = normPriority(p);
   for (const b of $$('[data-prio]')) b.classList.toggle('on', b.dataset.prio === tfPriority);
 }
 
@@ -1588,7 +1739,13 @@ $('#task-form').addEventListener('submit', (e) => {
     return;
   }
   const time = $('#tf-time').value || '';
+  const end = $('#tf-end').value || '';
+  if (end && (!time || end <= time)) {
+    toast(time ? 'End time must be after the start time' : 'Set a start time first');
+    return;
+  }
   t.text = title;
+  t.endTime = end;
   t.date = $('#tf-date').value || todayKey();
   t.time = time;
   t.slot = time ? '' : t.slot;
