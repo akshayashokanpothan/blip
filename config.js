@@ -2,6 +2,6 @@
 // Leave the values empty to run in preview mode (email is not verified, Google is off).
 // Never put a service-role key in this file.
 window.BLIP_CONFIG = {
-  supabaseUrl: '',
-  supabaseAnonKey: '',
+  supabaseUrl: 'https://ukgmeocyybqsmiopzxai.supabase.co',
+  supabaseAnonKey: 'sb_publishable_oODhHCHzrPxkLpbalfktAg_FFjaj86Q',
 };

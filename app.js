@@ -2,6 +2,10 @@
 // Tasks and notes live in localStorage. Parsing uses a local rule-based parser,
 // or the Claude API if you add an API key in Settings. Voice uses the browser's
 // speech recognition. Nothing is sent anywhere unless you add a key.
+// v2: when you sign in (Supabase keys in config.js), sync.js also keeps tasks,
+// notes and profile settings in step across your devices.
+
+const APP_VERSION = '2.0.0-preview';
 
 const TASKS_KEY = 'blip.tasks.v1';
 const NOTES_KEY = 'blip.notes.v1';
@@ -55,11 +59,20 @@ if (settings.theme === 'default' || settings.theme === 'green') settings.theme =
 if (!THEMES.includes(settings.theme)) settings.theme = 'light';
 
 function save() {
+  syncChanged('tasks');
   localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
   if (typeof scheduleNextReminder === 'function') scheduleNextReminder();
 }
-function saveNotes() { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); }
-function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+function saveNotes() {
+  syncChanged('notes');
+  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+}
+function saveSettings() {
+  syncChanged('settings');
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+// Set up in the sync section once signed in; a no-op before that.
+let syncChanged = () => {};
 
 // ---------- helpers ----------
 const $ = (sel) => document.querySelector(sel);
@@ -1357,6 +1370,7 @@ async function fromSession(session) {
     avatar: meta.avatar_url || null,
   });
   finishOnboarding();
+  startSync(u.id);
 }
 
 async function signInWithEmail(email) {
@@ -1600,6 +1614,7 @@ function initAccountAndInstall() {
       showOnboarding('auth');
       return;
     }
+    await stopSync();
     if (sb) await sb.auth.signOut();
     setProfile(null);
     showOnboarding('auth');
@@ -1620,6 +1635,86 @@ async function initAuth() {
   renderProfile();
   authMsg(sb ? '' : 'Preview mode: connect Supabase in config.js to verify email and enable Google.');
   if (!profile) showOnboarding('welcome');
+}
+
+// ---------- sync (v2) ----------
+// Runs only when signed in with Supabase. Guests and preview mode behave as v1.
+let blipSync = null;
+
+function syncStatusText(status, last) {
+  if (status === 'syncing') return 'Syncing…';
+  if (status === 'offline') return 'Offline. Changes will sync when you’re back online.';
+  if (status === 'error') return 'Couldn’t sync. Blip will try again shortly.';
+  if (status === 'synced') {
+    const mins = Math.round((Date.now() - last) / 60000);
+    return mins < 1 ? 'Synced just now' : `Synced ${mins} min ago`;
+  }
+  return '';
+}
+
+function renderSyncLine(status, last) {
+  const el = $('#sync-line');
+  if (!el) return;
+  const text = syncStatusText(status, last);
+  el.textContent = text;
+  el.hidden = !text;
+}
+
+function startSync(userId) {
+  if (!sb || !window.createBlipSync) return;
+  if (!blipSync) {
+    blipSync = window.createBlipSync({
+      client: sb,
+      storage: localStorage,
+      onStatus: renderSyncLine,
+      log: (...a) => console.warn('[Blip sync]', ...a),
+      store: {
+        getTasks: () => tasks,
+        getNotes: () => notes,
+        getSettings: () => settings,
+        // Writes from the server go straight to storage, not back through sync.
+        setTasks: (list) => {
+          tasks = list.map(normalizeTask);
+          localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+          scheduleNextReminder();
+        },
+        setNotes: (list) => {
+          notes = list;
+          localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+        },
+        applySettings: (s) => {
+          Object.assign(settings, s);
+          if (!THEMES.includes(settings.theme)) settings.theme = 'light';
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+          setTheme(settings.theme);
+          renderProfile();
+        },
+        // A task arriving from another device that is already past its
+        // reminder time shouldn't ring here too.
+        alreadyDue: (t) => {
+          const at = remindAt(t);
+          return at !== null && at <= Date.now();
+        },
+        // Re-render, but not over a form the user is editing.
+        remoteChanged: () => {
+          const editing = ui.view === 'task' || ui.view === 'note';
+          if (!editing) render();
+          else renderHome();
+        },
+      },
+    });
+    syncChanged = (kind) => blipSync.changed(kind);
+    window.addEventListener('online', () => blipSync.resume());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') blipSync.resume();
+    });
+  }
+  blipSync.start(userId);
+}
+
+async function stopSync() {
+  if (!blipSync) return;
+  await blipSync.stop({ clear: true });
 }
 
 // ---------- splash ----------
