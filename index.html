@@ -233,7 +233,10 @@
             <textarea id="composer-input" rows="1" placeholder="Or type a task…" aria-label="Type a task"></textarea>
             <div class="composer-bar">
               <button id="composer-plus" class="composer-plus" type="button" aria-label="Start typing a task" title="Type a task">+</button>
-              <button id="composer-pill" class="composer-pill" type="button">Smart add</button>
+              <div class="model-pick">
+                <button id="composer-pill" class="composer-pill" type="button" aria-haspopup="listbox" aria-expanded="false"><span id="model-name">Blip 2.0</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+                <ul id="model-menu" class="model-menu" role="listbox" aria-label="Blip version" hidden></ul>
+              </div>
               <span class="composer-spacer" aria-hidden="true"></span>
               <button id="composer-mic" class="composer-mic" type="button" aria-label="Speak a task">
                 <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg>
@@ -536,7 +539,7 @@
 
       <p class="section-label">About</p>
       <div class="settings-group">
-        <div class="setting-row" style="border-top:0"><span>Blip</span><span id="about-version" class="muted">Version 2.2.3</span></div>
+        <div class="setting-row" style="border-top:0"><span>Blip</span><span id="about-version" class="muted">Version 2.2.4</span></div>
       </div>
     </section>
   </main>
