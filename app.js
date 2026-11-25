@@ -10,8 +10,7 @@ const PROFILE_KEY = 'blip.profile.v1';
 const INSTALL_DISMISS_KEY = 'blip.installDismissed.v1';
 const SPLASH_KEY = 'blip.splashShown';
 const MODEL = 'claude-haiku-5-5';
-// Only one theme for now. More are coming later.
-const THEME = 'default';
+const THEMES = ['light', 'dark'];
 
 // ---------- storage ----------
 function loadJSON(key, fallback) {
@@ -41,7 +40,8 @@ function normalizeTask(t) {
 let tasks = loadJSON(TASKS_KEY, []).map(normalizeTask);
 let notes = loadJSON(NOTES_KEY, []);
 const settings = loadJSON(SETTINGS_KEY, {});
-settings.theme = THEME; // every older theme choice maps to the one theme
+if (settings.theme === 'default' || settings.theme === 'green') settings.theme = 'light';
+if (!THEMES.includes(settings.theme)) settings.theme = 'light';
 
 function save() { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); }
 function saveNotes() { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); }
@@ -803,6 +803,7 @@ function renderSettings() {
   $('#mode-hint').textContent = settings.apiKey
     ? 'AI parsing is on. Claude Haiku reads what you say or type.'
     : 'Offline parsing is on. Add a key for smarter parsing.';
+  markTheme();
   renderNotifButton();
 }
 
@@ -1251,6 +1252,16 @@ function initDevice() {
     processText(v);
   });
 
+  // Phone home: the text box under the mic sends typed tasks through the same review step.
+  $('#home-composer').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = $('#composer-input');
+    const v = input.value.trim();
+    if (!v) return;
+    input.value = '';
+    processText(v);
+  });
+
   // Desktop shortcuts. They never fire while typing.
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -1275,12 +1286,27 @@ function initDevice() {
 }
 
 // ---------- themes ----------
-function setTheme() {
-  root.dataset.theme = THEME;
-  if (settings.theme !== THEME) {
-    settings.theme = THEME;
+function setTheme(name = settings.theme) {
+  if (!THEMES.includes(name)) name = 'light';
+  root.dataset.theme = name;
+  if (settings.theme !== name) {
+    settings.theme = name;
     saveSettings();
   }
+  markTheme();
+}
+
+function markTheme() {
+  for (const b of $$('[data-theme-pick]')) {
+    b.setAttribute('aria-pressed', String(b.dataset.themePick === settings.theme));
+  }
+}
+
+for (const b of $$('[data-theme-pick]')) {
+  b.addEventListener('click', () => {
+    setTheme(b.dataset.themePick);
+    toast(`Theme: ${b.dataset.themePick === 'dark' ? 'Dark' : 'Light'}`);
+  });
 }
 
 // ---------- views ----------
@@ -1600,7 +1626,7 @@ setInterval(() => {
   if (!typing && !editing) render();
 }, 30_000);
 
-setTheme();
+setTheme(settings.theme);
 runSplash();
 showView('home');
 render();

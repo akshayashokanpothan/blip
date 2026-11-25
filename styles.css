@@ -1,11 +1,11 @@
-/* Blip theme: one set of CSS variables on <html data-theme="default">.
-   The Blip Green palette with Manrope and Inter. More themes come later. */
+/* Blip themes: light (default) and dark, both on the Blip Green brand with Manrope and Inter.
+   Each theme is a set of CSS variables on <html data-theme="...">. */
 
 @import url("assets/brand/brand-tokens.css");
 
 /* ---------- Default theme: centralized tokens ---------- */
 :root,
-[data-theme="default"] {
+[data-theme="light"] {
   --bg: var(--blip-surface);
   --card: var(--blip-white);
   --ink: var(--blip-ink);
@@ -39,6 +39,25 @@
   --ease: var(--blip-motion-ease);
 }
 
+/* Dark: the Blip Green brand on dark surfaces. */
+[data-theme="dark"] {
+  --bg: #0F1F18;
+  --card: #16291F;
+  --ink: #EEF5F0;
+  --muted: #98AEA2;
+  --line: #223A2E;
+  --border: #33503F;
+  --pill: #1E3A2C;
+  --fab: #2D5A42;
+  --fab-ink: #F3F8F5;
+  --accent: #58B889;
+  --done: #58B889;
+  --focus: #6A8D7B;
+  --red: #F07A6A;
+  --shadow: none;
+  --fab-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
 /* ---------- base ---------- */
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
@@ -69,6 +88,8 @@ svg.i { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-widt
 .logo { display: block; line-height: 0; }
 .logo svg { display: block; height: 30px; width: auto; }
 .logo-dark { display: none; }
+[data-theme="dark"] .logo-light { display: none; }
+[data-theme="dark"] .logo-dark { display: block; }
 
 /* ---------- splash ---------- */
 .splash {
@@ -96,9 +117,13 @@ svg.i { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-widt
 }
 .brand { display: flex; align-items: center; min-width: 0; }
 .avatar-btn {
-  width: 40px; height: 40px; display: grid; place-items: center; color: var(--ink);
+  width: 44px; height: 44px; border-radius: 999px; display: grid; place-items: center;
+  background: var(--pill); color: var(--fab); border: 1px solid var(--line);
+  box-shadow: 0 6px 16px rgba(15, 31, 24, 0.12);
 }
-.avatar-btn svg.i { width: 26px; height: 26px; }
+[data-theme="dark"] .avatar-btn { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4); }
+.avatar-btn svg.i { width: 22px; height: 22px; }
+.avatar-btn img { width: 100%; height: 100%; border-radius: 999px; object-fit: cover; }
 
 .avatar { width: 52px; height: 52px; border-radius: 999px; background: var(--pill); display: grid; place-items: center; overflow: hidden; flex: none; color: var(--fab); font-family: var(--display); font-weight: 600; font-size: 20px; }
 .avatar img, .avatar-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -192,7 +217,19 @@ main {
 }
 .hero-copy { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.5; }
 
-.mic-wrap { display: flex; flex-direction: column; align-items: center; padding: 34px 0 8px; }
+.mic-wrap { display: flex; flex-direction: column; align-items: center; padding: 34px 0 8px; margin-top: auto; }
+.composer {
+  display: flex; align-items: center; gap: 8px; margin-top: 14px;
+  padding: 6px 6px 6px 18px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 999px; box-shadow: var(--shadow);
+}
+.composer input { flex: 1; min-width: 0; height: 44px; border: 0; outline: 0; font-size: 16px; color: var(--ink); background: transparent; }
+.composer input::placeholder { color: var(--muted); }
+.composer-send {
+  width: 44px; height: 44px; flex: none; border-radius: 999px; display: grid; place-items: center;
+  background: var(--fab); color: var(--fab-ink);
+}
+.composer-send svg.i { width: 20px; height: 20px; }
 .mic-hero {
   position: relative; width: 116px; height: 116px; border-radius: 999px;
   display: grid; place-items: center; background: var(--fab); color: var(--fab-ink);
@@ -476,11 +513,11 @@ main {
 .theme-opt { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px; border-radius: var(--r-field); border: 1.5px solid var(--line); font-size: 13px; color: var(--ink); }
 .theme-opt[aria-pressed="true"] { border-color: var(--accent); }
 .swatch { width: 100%; height: 44px; border-radius: var(--r-sm); border: 1px solid var(--line); }
-.swatch.default { background: linear-gradient(135deg, #F8FAF7 50%, #1B3B2B 50%); }
-.theme-static { display: flex; align-items: center; gap: 14px; padding: 14px 16px 16px; }
-.theme-static .swatch { width: 56px; height: 40px; flex: none; }
-.theme-static strong { display: block; font-size: 16px; font-weight: 500; }
-.theme-static span { display: block; font-size: 14px; color: var(--muted); margin-top: 2px; }
+.swatch.light { background: linear-gradient(135deg, #F8FAF7 50%, #1B3B2B 50%); }
+.swatch.dark { background: linear-gradient(135deg, #0F1F18 50%, #58B889 50%); }
+
+/* Home fills the phone screen: text at the top, mic and text box at the bottom. */
+#view-home .home-main { display: flex; flex-direction: column; min-height: calc(100dvh - 150px); }
 
 /* ---------- tablet ---------- */
 @media (min-width: 768px) and (max-width: 1023px) {
@@ -507,6 +544,8 @@ main {
   #view-settings { max-width: 720px; }
 
   .quick-add { display: flex; }
+  .composer { display: none; }
+  #view-home .home-main { min-height: 0; }
   .shortcut-hint { display: block; }
   #view-home .mic-wrap { padding-top: 20px; }
 
