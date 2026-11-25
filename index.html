@@ -20,16 +20,14 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <title>Blip</title>
   <script>
-    // Anywhere but the live address is a test build: give it its own installed
-    // name and icon ("Blip Preview") so both apps can sit side by side.
+    // Anywhere but the live address is a test build ("Blip Preview").
     (function () {
       if (location.hostname === 'blip.akshayashokanpothan.com') return;
       document.documentElement.dataset.env = 'preview';
-      var set = function (sel, attr, val) { var el = document.querySelector(sel); if (el) el.setAttribute(attr, val); };
-      set('link[rel="manifest"]', 'href', 'manifest-preview.webmanifest');
-      set('link[rel="apple-touch-icon"]', 'href', 'icons/preview/apple-touch-icon.png');
-      set('link[rel="icon"][sizes="32x32"]', 'href', 'icons/preview/favicon-32.png');
-      set('meta[name="apple-mobile-web-app-title"]', 'content', 'Blip Preview');
+      // The install name and icons come from the server (vercel.json serves the
+      // preview manifest and icons on the preview address). Chrome on Android
+      // ignores a manifest swapped in by script, so this only sets the title.
+      var t = document.querySelector('meta[name="apple-mobile-web-app-title"]'); if (t) t.setAttribute('content', 'Blip Preview');
       var svg = document.querySelector('link[rel="icon"][type="image/svg+xml"]'); if (svg) svg.remove();
       document.title = 'Blip (Preview)';
     })();
