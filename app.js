@@ -5,7 +5,7 @@
 // v2: when you sign in (Supabase keys in config.js), sync.js also keeps tasks,
 // notes and profile settings in step across your devices.
 
-const APP_VERSION = '2.2.2';
+const APP_VERSION = '2.2.3';
 
 const TASKS_KEY = 'blip.tasks.v1';
 const NOTES_KEY = 'blip.notes.v1';
@@ -194,15 +194,74 @@ function findTask(query) {
 }
 
 // ---------- local parser (no API key needed) ----------
-const FILLER = /^(ok(ay)?|so|hey|um+|uh+|please|i\s+(need|have|want|should|got|must)\s+to|i'?m\s+gonna|gonna|remind\s+me(\s+to)?|(create|creative|set\s+up|set|add|make)\s+(a\s+|an\s+)?(new\s+)?(reminder|task|to-?do)(\s+(to|for|that))?|add|todo|to\s+do)\s+/i;
+const FILLER = /^(ok(ay)?|so|hey|um+|uh+|please|actually|sorry|oops|wait|well|right|i\s+(need|have|want|should|got|must)\s+to|i'?m\s+gonna|gonna|remind\s+me(\s+to)?|(create|creative|set\s+up|set|add|make)\s+(a\s+|an\s+)?(new\s+)?(reminder|task|to-?do)(\s+(to|for|that))?|add|todo|to\s+do)\s+/i;
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
 // Words that say when something happens. Used to tell "buy apples at 6 and
 // medicines at 9" (two tasks) from "call mom and dad at 6" (one task).
 const WHEN_CUE = /\b(\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?|o\s*['’]?\s*clock)|\d{1,2}:\d{2}|(at|by)\s+\d{1,2}|(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+o\s*['’]?\s*clock|today|tonight|tomorrow|morning|afternoon|evening|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i;
 
+// ---------- self-corrections ----------
+// People fix themselves mid-sentence: "tomorrow, sorry, today at 10",
+// "at 5 no 6 pm", "on Monday actually Tuesday", "not tomorrow but today".
+// The later day or time wins, and the slip and the "sorry" leave the title.
+const DAY_WORDS = 'day after tomorrow|tomorrow|tonight|today|sunday|monday|tuesday|wednesday|thursday|friday|saturday';
+const NUM_TIME = 'one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve';
+const DATE_RX = new RegExp(`\\b(?:(?:on|for|this|next)\\s+)?(?:${DAY_WORDS})\\b`, 'gi');
+const TIME_RX = new RegExp([
+  `\\b(?:(?:at|by|for|around)\\s+)?\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?|o\\s*['’]?\\s*clock)(?![a-z])`,
+  `\\b(?:(?:at|by|for|around)\\s+)?(?:${NUM_TIME})\\s+o\\s*['’]?\\s*clock\\b`,
+  `\\b(?:(?:at|by|for|around)\\s+)?\\d{1,2}:\\d{2}\\b`,
+  `\\b(?:at|by|around)\\s+\\d{1,2}\\b`,
+].join('|'), 'gi');
+const PART_RX = /\b(?:in the\s+)?(?:morning|afternoon|evening|night)\b/gi;
+const CORRECTION = /\s*[,.;]?\s*\b(?:sorry|oops|no+|nope|wait|i mean|i meant|actually|rather|correction|scratch that|make (?:it|that)|change (?:it|that) to)\b[,.]?\s*(?:(?:it'?s|it is|make it|make that|i mean)\b[,.]?\s*)?/gi;
+// A bare number after a correction ("at 5 no 6") is a time when a time came before it.
+const BARE_NUM = /^(?:at\s+)?(\d{1,2})(?::(\d{2}))?\b(?!\s*(?:a\.?m|p\.?m|o\s*['’]?\s*clock|:))/i;
+
+const rxHas = (rx, s) => { rx.lastIndex = 0; const r = rx.test(s); rx.lastIndex = 0; return r; };
+const rxStarts = (rx, s) => { rx.lastIndex = 0; const m = rx.exec(s); rx.lastIndex = 0; return Boolean(m && m.index === 0); };
+const rxStrip = (rx, s) => s.replace(rx, ' ');
+
+function applyCorrections(input) {
+  let text = input;
+  // "not tomorrow but today", "not at 5, at 6": drop the negated part.
+  text = text.replace(new RegExp(`\\bnot\\s+((?:(?:on|for|at|by)\\s+)?(?:${DAY_WORDS}|\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?|o\\s*['’]?\\s*clock)?))\\s*[,.]?\\s*(?:but\\s+)?(?=\\S)`, 'gi'), '');
+  for (let guard = 0; guard < 5; guard++) {
+    CORRECTION.lastIndex = 0;
+    let m;
+    let changed = false;
+    while ((m = CORRECTION.exec(text))) {
+      const before = text.slice(0, m.index);
+      let after = text.slice(m.index + m[0].length);
+      // Only a correction when a day or time follows straight away ("no sugar" stays).
+      const bare = rxHas(TIME_RX, before) && !rxStarts(TIME_RX, after) && after.match(BARE_NUM);
+      if (!rxStarts(DATE_RX, after) && !rxStarts(TIME_RX, after) && !rxStarts(PART_RX, after) && !bare) continue;
+      let b = before;
+      if (rxHas(DATE_RX, after)) b = rxStrip(DATE_RX, b);
+      if (rxHas(TIME_RX, after) || bare) {
+        // Keep "evening" from "at 5 in the evening, sorry 6" by moving it after.
+        const part = (b.match(PART_RX) || [])[0];
+        b = rxStrip(TIME_RX, b);
+        if (bare) {
+          // Reuse the am/pm or o'clock that went with the first time.
+          const unit = (before.match(/(a\.?m\.?|p\.?m\.?|o\s*['’]?\s*clock)(?![a-z])/i) || [])[1] || '';
+          after = after.replace(BARE_NUM, (w, h, mm) => `at ${h}${mm ? `:${mm}` : ''}${unit ? ` ${unit}` : ''}`);
+        }
+        if (part && !rxHas(PART_RX, after)) after = `${after} ${part}`;
+      }
+      if (rxHas(PART_RX, after)) b = rxStrip(PART_RX, b);
+      text = `${b.replace(/[\s,.;]+$/, '')} ${after}`.replace(/\s+/g, ' ').trim();
+      changed = true;
+      break;
+    }
+    if (!changed) break;
+  }
+  return text;
+}
+
 function splitItems(text) {
-  const parts = text
+  const parts = applyCorrections(text)
     .split(/\n|;|,|\b(?:and\s+)?also\b|\b(?:and\s+)?then\b|\bafter that\b/i)
     .map((s) => s.trim())
     .filter(Boolean);
@@ -239,10 +298,11 @@ function extractWhen(s, now = new Date()) {
   let m;
 
   if (/\bday after tomorrow\b/i.test(text)) {
-    date = addDays(base, 2);
+    date = addDays(base, now.getHours() < 4 ? 1 : 2);
     text = text.replace(/\bday after tomorrow\b/gi, ' ');
   } else if (/\btomorrow\b/i.test(text)) {
-    date = addDays(base, 1);
+    // Before 4 AM, "tomorrow" still means the coming day, which is already today's date.
+    date = now.getHours() < 4 ? base : addDays(base, 1);
     text = text.replace(/\btomorrow\b/gi, ' ');
   } else if (/\btonight\b/i.test(text)) {
     date = base;
@@ -282,7 +342,7 @@ function extractWhen(s, now = new Date()) {
   const NUM_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
   text = text.replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?=\s*(?:o\s*['’]?\s*clock|a\.?m\.?|p\.?m\.?)(?![a-z]))/gi,
     (w) => String(NUM_WORDS[w.toLowerCase()]));
-  const dayPart = (text.match(/\b(morning|afternoon|evening|night|tonight)\b/i) || [])[1]?.toLowerCase() || '';
+  const dayPart = (text.match(/\b(morning|afternoon|evening|night|tonight)\b/i) || [])[1]?.toLowerCase() || (slot === 'evening' ? 'evening' : '');
   const tm = !time && (
     text.match(/\b(?:at\s+|by\s+|for\s+|@\s*)?(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?![a-z])/i)
     || text.match(/\b(?:at\s+|by\s+|for\s+|@\s*)?(\d{1,2})(?::(\d{2}))?\s*o\s*['’]?\s*clock\b()/i)
@@ -378,6 +438,8 @@ async function parseWithLLM(input, apiKey) {
     '{"type":"rename","match":"existing task","text":"new text"}',
     'Split separate tasks into separate add actions. Fix obvious speech-recognition errors. Mark urgent or important items as high priority, things with no rush as low, and everything else as medium.',
     'Only set date, time or slot when the speaker said them. Never guess a time. Use null when unsure.',
+    'Speakers correct themselves ("tomorrow, sorry, today", "at 5 no 6", "Monday actually Tuesday", "not today but tomorrow"): the later value wins, and the slip and words like "sorry" never go in the task text.',
+    ...(new Date().getHours() < 4 ? ['It is past midnight: "tomorrow" means the coming day, which is today\'s date, and "tonight" means today.'] : []),
     `Today is ${today}. Tomorrow is ${addDays(today, 1)}.`,
   ].join('\n');
 
