@@ -1302,6 +1302,7 @@ const pushCovers = () => Boolean(push?.endpoint && profile && profile.mode !== '
 function notify(t, min = 0) {
   const { title, body } = R.reminderText(t, min, whenLabel(t));
   toast(`${title} · ${min === 0 ? fmtTime(t.time) : R.leadText(min)}`);
+  if (document.visibilityState === 'visible') { playChime(); buzz(); }
   if (pushCovers() && t.id !== 'test') return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   const opts = {
@@ -1311,7 +1312,7 @@ function notify(t, min = 0) {
     tag: `blip-${t.id}-${min}`,
     renotify: true,
     requireInteraction: min === 0,
-    vibrate: [200, 100, 200],
+    vibrate: BUZZ,
     timestamp: dueAt(t) ?? Date.now(),
     data: { taskId: t.id },
   };
@@ -1467,8 +1468,68 @@ async function syncPushSchedule() {
   }
 }
 
+// ---------- reminder sound and buzz ----------
+// Blip's own chime plays when a reminder fires while Blip is open. The sound
+// of a closed-app notification is the phone's; the buzz pattern goes with it.
+const BUZZ = [120, 80, 120, 80, 360]; // short, short, long
+const CHIMES = {
+  blip:   { label: 'Blip',   notes: [[880, 0, 0.09], [1320, 0.11, 0.16]], wave: 'sine', gain: 0.22 },
+  soft:   { label: 'Soft',   notes: [[523, 0, 0.22], [784, 0.2, 0.34]], wave: 'triangle', gain: 0.2 },
+  bright: { label: 'Bright', notes: [[1047, 0, 0.08], [1319, 0.09, 0.08], [1568, 0.18, 0.2]], wave: 'sine', gain: 0.18 },
+  off:    { label: 'Off', notes: [] },
+};
+let audioCtx = null;
+// Browsers only allow sound after a tap, so warm the audio up on the first one.
+addEventListener('pointerdown', () => {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch { /* no Web Audio */ }
+}, { once: false, passive: true });
+
+function playChime(name = settings.chime || 'blip') {
+  const c = CHIMES[name];
+  if (!c || !c.notes.length) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = audioCtx.currentTime + 0.02;
+    for (const [freq, at, len] of c.notes) {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = c.wave;
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t0 + at);
+      g.gain.exponentialRampToValueAtTime(c.gain, t0 + at + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + len);
+      o.connect(g).connect(audioCtx.destination);
+      o.start(t0 + at);
+      o.stop(t0 + at + len + 0.05);
+    }
+  } catch { /* sound unavailable */ }
+}
+
+function buzz() {
+  try { navigator.vibrate?.(BUZZ); } catch { /* not supported */ }
+}
+
+function renderChimeOptions() {
+  const cur = settings.chime || 'blip';
+  $('#chime-opts').innerHTML = Object.entries(CHIMES).map(([k, c]) =>
+    `<button type="button" class="remind-chip${k === cur ? ' on' : ''}" data-chime="${k}" aria-pressed="${k === cur}">${c.label}</button>`).join('');
+}
+$('#chime-opts').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-chime]');
+  if (!b) return;
+  settings.chime = b.dataset.chime;
+  saveSettings();
+  renderChimeOptions();
+  playChime(settings.chime);
+  if (settings.chime !== 'off') buzz();
+});
+
 // ---------- reminder settings ----------
 function renderRemindOptions() {
+  renderChimeOptions();
   const picked = remindOffsets();
   const custom = Array.isArray(settings.remindOffsets);
   $('#remind-opts').innerHTML = [0, ...R.OPTIONS].map((min) => {

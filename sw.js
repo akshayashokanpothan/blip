@@ -1,6 +1,6 @@
 // Network-first with cache fallback, so Blip opens offline.
 // Bump CACHE when you change app files so old copies are dropped.
-const CACHE = 'blip-v41';
+const CACHE = 'blip-v42';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icon.svg', 'assets/brand/brand-tokens.css', 'assets/logo/symbol-color.svg', 'icons/app-icon-192.png', 'icons/app-icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'config.js', 'sync.js', 'avatars.js', 'headlines.js', 'reminders.js'];
 
 self.addEventListener('install', (e) => {
@@ -46,7 +46,7 @@ self.addEventListener('push', (e) => {
     tag: d.tag || `blip-${d.taskId || 'x'}`,
     renotify: true,
     requireInteraction: Boolean(d.now),
-    vibrate: [200, 100, 200],
+    vibrate: [120, 80, 120, 80, 360], // Blip's buzz: short, short, long
     timestamp: d.ts || Date.now(),
     data: { taskId: d.taskId || null },
   }));
