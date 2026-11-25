@@ -285,29 +285,13 @@ main {
   display: flex;
   align-items: center;
   gap: 16px;
-  min-height: 68px;
-  padding: 16px 20px;
+  min-height: 60px;
+  padding: 12px 10px 12px 20px;
   background: var(--card);
   touch-action: pan-y;
   transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.row.dragging { transition: none; }
-.row.open { transform: translateX(-96px); }
 
-.swipe-del {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 96px;
-  border: 0;
-  background: var(--red);
-  color: #fff;
-  font: inherit;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
 
 /* circle checkbox */
 .circle {
@@ -920,8 +904,7 @@ main {
 .sidebar,
 .quick-add,
 .home-side,
-.shortcut-hint,
-.x-del { display: none; }
+.shortcut-hint { display: none; }
 
 .home-layout { display: block; }
 
@@ -1091,20 +1074,21 @@ main {
   color: var(--ink);
 }
 
-/* Delete control for mouse users; touch users keep swipe. */
+/* Trash icon: always visible on touch, revealed on hover for mouse users. */
 .x-del {
-  width: 32px;
-  height: 32px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   padding: 0;
   border: 0;
   border-radius: 50%;
   background: none;
   color: var(--muted);
-  font-size: 22px;
-  line-height: 1;
   cursor: pointer;
 }
+.x-del:hover { color: var(--red); }
 
 @media (hover: hover) and (pointer: fine) {
   .row:hover { background: var(--bg); }
@@ -1118,8 +1102,7 @@ main {
   .row:focus-within .x-del,
   .x-del:focus-visible { opacity: 1; }
   .x-del:hover { background: var(--card); color: var(--red); }
-  .swipe-del { display: none; }
-  .circle:hover { border-color: var(--accent); }
+    .circle:hover { border-color: var(--accent); }
 }
 
 @media (prefers-reduced-motion: reduce) {

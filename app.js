@@ -282,9 +282,8 @@ function todayItemHTML(t) {
       <div class="row${t.done ? ' done' : ''}${t.priority === 'high' ? ' high' : ''}">
         <button class="circle" data-act="toggle" aria-label="Mark done"></button>
         <span class="text" data-act="edit">${esc(t.text)}</span>
-        <button class="x-del" data-act="delete" aria-label="Delete task">×</button>
+        <button class="x-del" data-act="delete" aria-label="Delete task"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button>
       </div>
-      <button class="swipe-del" data-act="delete">Delete</button>
     </li>`;
 }
 
@@ -294,8 +293,8 @@ function carryItemHTML(t) {
       <div class="row">
         <span class="text">${esc(t.text)}</span>
         <button class="move" data-act="move">Move to today</button>
+        <button class="x-del" data-act="delete" aria-label="Delete task"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button>
       </div>
-      <button class="swipe-del" data-act="delete">Delete</button>
     </li>`;
 }
 
@@ -741,42 +740,6 @@ function closeAll() {
   $('#input').blur();
 }
 
-// ---------- swipe to delete ----------
-let swipe = null;
-let suppressClick = false;
-
-document.addEventListener('pointerdown', (e) => {
-  suppressClick = false;
-  const row = e.target.closest('.row');
-  if (!row || e.target.closest('.circle, .move, [contenteditable="true"]')) return;
-  swipe = { row, x: e.clientX, dx: 0, moved: false };
-});
-
-document.addEventListener('pointermove', (e) => {
-  if (!swipe) return;
-  const delta = e.clientX - swipe.x;
-  if (!swipe.moved && Math.abs(delta) < 8) return;
-  swipe.moved = true;
-  swipe.row.classList.add('dragging');
-  const base = swipe.row.classList.contains('open') ? -96 : 0;
-  swipe.dx = Math.max(-96, Math.min(0, base + delta));
-  swipe.row.style.transform = `translateX(${swipe.dx}px)`;
-});
-
-function endSwipe() {
-  if (!swipe) return;
-  const { row, moved, dx } = swipe;
-  swipe = null;
-  row.classList.remove('dragging');
-  row.style.transform = '';
-  if (moved) {
-    suppressClick = true;
-    row.classList.toggle('open', dx < -48);
-  }
-}
-document.addEventListener('pointerup', endSwipe);
-document.addEventListener('pointercancel', endSwipe);
-
 // ---------- inline edit ----------
 function startEdit(el) {
   if (el.isContentEditable) return;
@@ -811,18 +774,7 @@ function finishEdit(el) {
 
 // Row actions: toggle, edit, delete, move.
 document.body.addEventListener('click', (e) => {
-  if (suppressClick) {
-    suppressClick = false;
-    return;
-  }
-
   const el = e.target.closest('[data-act]');
-
-  // Tapping anywhere else closes open swipe rows.
-  $$('.row.open').forEach((r) => {
-    if (!el || el.closest('.swipe') !== r.closest('.swipe')) r.classList.remove('open');
-  });
-
   if (!el) return;
 
   const id = el.closest('[data-id]')?.dataset.id;
