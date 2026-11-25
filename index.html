@@ -428,7 +428,7 @@
         <h1 class="page-title">Settings</h1>
       </div>
 
-      <button id="profile-card" class="card row-link" type="button" style="padding:16px 18px;border-top:0;margin-bottom:18px" data-account>
+      <button id="profile-card" class="card row-link" type="button" style="padding:16px 18px;border-top:0;margin-bottom:18px" aria-label="Edit your profile">
         <span class="avatar" id="settings-avatar"></span>
         <span class="grow" style="flex:1;min-width:0">
           <strong id="settings-name" style="display:block;font-size:17px;font-weight:600">Blip</strong>
@@ -561,6 +561,52 @@
       <div class="cap-actions">
         <button id="cap-cancel" class="btn secondary" type="button">Cancel</button>
         <button id="cap-add" class="btn primary" type="button">Add to Blip</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Profile setup: opened from the Settings profile card -->
+  <section id="profile-setup" class="onboard" hidden aria-label="Your profile">
+    <div class="ps-top">
+      <button id="ps-back" class="icon-btn" type="button" aria-label="Back">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <div class="dots" aria-hidden="true"><span class="dot on" data-ps-dot="name"></span><span class="dot" data-ps-dot="role"></span></div>
+      <button id="ps-skip" class="link" type="button">Skip</button>
+    </div>
+
+    <div id="ps-name" class="ob-panel">
+      <h1>What should Blip call you?</h1>
+      <p>Your name is only used to greet you. It stays on this device.</p>
+      <input id="ps-name-input" class="ps-input" type="text" autocomplete="name" autocapitalize="words" maxlength="60" placeholder="Your name">
+      <p id="ps-hello" class="ps-hello" aria-live="polite"></p>
+      <div class="ob-foot" style="margin-top:auto">
+        <button id="ps-next" class="btn primary" type="button">Continue</button>
+      </div>
+    </div>
+
+    <div id="ps-role" class="ob-panel" hidden>
+      <h1>What do you do?</h1>
+      <p>Pick the closest one. Blip uses it to word your tasks the way you would.</p>
+      <div id="ps-roles" class="ps-roles" role="radiogroup" aria-label="Your work">
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="engineer">Engineer</button>
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="designer">Designer</button>
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="data-analyst">Data analyst</button>
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="business-analyst">Business analyst</button>
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="product-manager">Product manager</button>
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="student">Student</button>
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="researcher">Researcher</button>
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="doctor">Doctor</button>
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="healthcare">Nurse or healthcare</button>
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="teacher">Teacher</button>
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="founder">Founder or business owner</button>
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="marketing">Marketing or sales</button>
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="freelancer">Freelancer</button>
+        <button type="button" class="ps-role" role="radio" aria-checked="false" data-role="other">Something else</button>
+      </div>
+      <input id="ps-role-other" class="ps-input" type="text" maxlength="40" placeholder="Tell us your work" hidden>
+      <div class="ob-foot" style="margin-top:auto">
+        <button id="ps-done" class="btn primary" type="button">Done</button>
       </div>
     </div>
   </section>

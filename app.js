@@ -302,6 +302,7 @@ async function parseWithLLM(input, apiKey) {
   const open = tasks.filter((t) => !t.done && t.date === today).map((t) => t.text);
   const system = [
     'You convert a short typed or speech-recognized note into JSON actions for a personal to-do app.',
+    ...(roleLabel() ? [`The user works as: ${roleLabel()}. Use that to read their jargon, but don't add words they didn't say.`] : []),
     'Return ONLY a JSON object: {"actions":[...]}.',
     'Action types:',
     '{"type":"add","text":"short task, under 10 words","priority":"high"|"medium"|"low","date":"YYYY-MM-DD or null","time":"HH:MM 24-hour start time or null","endTime":"HH:MM 24-hour end time or null","slot":"morning"|"afternoon"|"evening"|null}',
@@ -952,7 +953,8 @@ function renderHome() {
   $('#stat-done').textContent = doneCount;
   $('#stat-open').textContent = todays.length - doneCount;
   $('#stat-carry').textContent = tasks.filter((t) => t.date < today && !t.done).length;
-  $('#greeting').textContent = `${greeting()} · ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`;
+  const first = displayName().split(/\s+/)[0];
+  $('#greeting').textContent = `${greeting()}${first ? `, ${first}` : ''} · ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`;
 }
 
 function renderTasks() {
@@ -1199,6 +1201,115 @@ function scheduleNextReminder() {
   reminderTimer = setTimeout(checkReminders, delay);
 }
 
+// ---------- profile: name and work ----------
+// Kept in settings, separate from sign-in, so it works for guests too.
+const ROLES = {
+  'engineer': 'Engineer',
+  'designer': 'Designer',
+  'data-analyst': 'Data analyst',
+  'business-analyst': 'Business analyst',
+  'product-manager': 'Product manager',
+  'student': 'Student',
+  'researcher': 'Researcher',
+  'doctor': 'Doctor',
+  'healthcare': 'Nurse or healthcare',
+  'teacher': 'Teacher',
+  'founder': 'Founder or business owner',
+  'marketing': 'Marketing or sales',
+  'freelancer': 'Freelancer',
+  'other': 'Something else',
+};
+
+function displayName() {
+  const fromAccount = profile && profile.mode !== 'guest' ? profile.name : '';
+  return (settings.displayName ?? fromAccount ?? '').trim();
+}
+function roleLabel() {
+  if (!settings.role) return '';
+  return settings.role === 'other' ? (settings.roleOther || '').trim() : ROLES[settings.role] || '';
+}
+
+const ps = { step: 'name', role: '' };
+
+function openProfileSetup(step = 'name') {
+  ps.role = settings.role || '';
+  $('#ps-name-input').value = displayName();
+  $('#ps-role-other').value = settings.roleOther || '';
+  markRole();
+  showProfileStep(step);
+  $('#profile-setup').hidden = false;
+}
+
+function showProfileStep(step) {
+  ps.step = step;
+  $('#ps-name').hidden = step !== 'name';
+  $('#ps-role').hidden = step !== 'role';
+  for (const d of $$('[data-ps-dot]')) d.classList.toggle('on', d.dataset.psDot === step);
+  if (step === 'name') {
+    sayHello();
+    setTimeout(() => $('#ps-name-input').focus(), 200);
+  }
+}
+
+function sayHello() {
+  const first = $('#ps-name-input').value.trim().split(/\s+/)[0];
+  $('#ps-hello').textContent = first ? `Nice to meet you, ${first}.` : '';
+}
+
+function markRole() {
+  for (const b of $$('.ps-role')) {
+    const on = b.dataset.role === ps.role;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-checked', String(on));
+  }
+  $('#ps-role-other').hidden = ps.role !== 'other';
+}
+
+function saveProfileSetup() {
+  settings.displayName = $('#ps-name-input').value.trim();
+  settings.role = ps.role;
+  settings.roleOther = ps.role === 'other' ? $('#ps-role-other').value.trim() : '';
+  saveSettings();
+}
+
+function closeProfileSetup() {
+  $('#profile-setup').hidden = true;
+  renderProfile();
+  renderHome();
+}
+
+$('#profile-card').addEventListener('click', () => openProfileSetup('name'));
+$('#ps-name-input').addEventListener('input', sayHello);
+$('#ps-name-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); $('#ps-next').click(); }
+});
+$('#ps-next').addEventListener('click', () => {
+  settings.displayName = $('#ps-name-input').value.trim();
+  saveSettings();
+  showProfileStep('role');
+});
+$('#ps-roles').addEventListener('click', (e) => {
+  const b = e.target.closest('.ps-role');
+  if (!b) return;
+  ps.role = ps.role === b.dataset.role ? '' : b.dataset.role;
+  markRole();
+  if (ps.role === 'other') $('#ps-role-other').focus();
+});
+$('#ps-done').addEventListener('click', () => {
+  saveProfileSetup();
+  closeProfileSetup();
+  const first = displayName().split(/\s+/)[0];
+  toast(first ? `Saved. Hi, ${first}!` : 'Saved');
+});
+$('#ps-skip').addEventListener('click', () => {
+  if (ps.step === 'name') showProfileStep('role');
+  else { saveProfileSetup(); closeProfileSetup(); }
+});
+$('#ps-back').addEventListener('click', () => {
+  if (ps.step === 'role') showProfileStep('name');
+  else closeProfileSetup();
+});
+
 // ---------- account and onboarding ----------
 // Real sign-in runs on Supabase (email link + Google) when config.js has keys.
 // Without keys, the app runs in preview mode: email sign-in is not verified.
@@ -1217,11 +1328,12 @@ const PERSON_ICON = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circ
 
 function renderProfile() {
   const photo = profile?.avatar ? `<img src="${esc(profile.avatar)}" alt="">` : PERSON_ICON;
-  const initial = (profile?.name || '').trim().charAt(0).toUpperCase();
+  const name = displayName();
+  const initial = name.charAt(0).toUpperCase();
   $('#avatar').innerHTML = photo;
   $('#settings-avatar').innerHTML = profile?.avatar ? photo : (initial || PERSON_ICON);
-  $('#settings-name').textContent = profile?.name || 'Blip';
-  $('#settings-sub').textContent = profile?.email || 'Say it. Get it done.';
+  $('#settings-name').textContent = name || 'Add your name';
+  $('#settings-sub').textContent = roleLabel() || profile?.email || 'Tell Blip a little about you';
   $('#account-line').textContent = !profile
     ? 'Not signed in.'
     : profile.mode === 'guest'
@@ -1962,11 +2074,7 @@ function moveMonth(delta) {
 $('#cal-prev').addEventListener('click', () => moveMonth(-1));
 $('#cal-next').addEventListener('click', () => moveMonth(1));
 
-// Settings.
-$('#profile-card').addEventListener('click', () => {
-  if (!profile || profile.mode === 'guest') showOnboarding('auth');
-  else toast(`Signed in as ${profile.email || profile.name}`);
-});
+// Settings. The profile card opens profile setup (see the profile section).
 
 $('#save-key').addEventListener('click', () => {
   settings.apiKey = $('#api-key').value.trim();
