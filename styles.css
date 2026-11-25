@@ -151,6 +151,8 @@ svg.i { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-widt
 .avatar-btn img { width: 100%; height: 100%; border-radius: 999px; object-fit: cover; }
 
 .avatar { width: 52px; height: 52px; border-radius: 999px; background: var(--pill); display: grid; place-items: center; overflow: hidden; flex: none; color: var(--fab); font-family: var(--display); font-weight: 600; font-size: 20px; }
+.avatar-btn.has-av, .avatar.has-av { padding: 0; overflow: hidden; }
+.avatar-btn.has-av svg, .avatar.has-av svg { width: 100%; height: 100%; display: block; }
 .avatar img, .avatar-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 /* ---------- main + views ---------- */
@@ -695,6 +697,13 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
 .ps-input { width: 100%; height: 54px; margin-top: 8px; border: 1px solid var(--border); border-radius: var(--r-field); padding: 0 16px; background: var(--card); color: var(--ink); font-size: 18px; outline: none; }
 .ps-input:focus { border-color: var(--focus); box-shadow: 0 0 0 3px var(--soft); }
 .ps-hello { min-height: 22px; margin: 0; color: var(--muted); font-size: 15px; }
+.ps-av-label { margin-top: 6px; font-size: 15px; font-weight: 600; color: var(--ink); }
+.ps-avatars { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 10px; max-width: 380px; }
+.ps-av { aspect-ratio: 1; width: 100%; padding: 0; border: 0; border-radius: 999px; background: none; cursor: pointer; position: relative; transition: transform .15s ease; }
+.ps-av svg { width: 100%; height: 100%; display: block; border-radius: 999px; }
+.ps-av:active { transform: scale(.94); }
+.ps-av.on { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5.5px var(--fab); }
+.ps-av:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--bg), 0 0 0 5.5px var(--focus); }
 .ps-roles { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .ps-role { height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--ink); font-size: 15px; transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
 .ps-role.on { background: var(--fab); border-color: var(--fab); color: var(--fab-ink); font-weight: var(--sub-weight); }

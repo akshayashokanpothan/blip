@@ -1312,6 +1312,8 @@ function openProfileSetup(step = 'name', { onboarding = false } = {}) {
   for (const el of $$('.ps-step')) el.hidden = !onboarding;
   ps.role = settings.role || '';
   $('#ps-name-input').value = displayName();
+  ps.avatar = settings.avatar || '';
+  renderAvatarPicker();
   $('#ps-role-other').value = settings.roleOther || '';
   markRole();
   showProfileStep(step);
@@ -1327,6 +1329,24 @@ function showProfileStep(step) {
   if (step === 'name') {
     sayHello();
     setTimeout(() => $('#ps-name-input').focus(), 200);
+  }
+}
+
+function renderAvatarPicker() {
+  $('#ps-avatars').innerHTML = AVATAR_IDS.map((id) => {
+    const on = id === ps.avatar;
+    return `<button type="button" class="ps-av${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-avatar="${id}" aria-label="${AVATARS[id].label}">${avatarSVG(id, { size: 56, title: false })}</button>`;
+  }).join('');
+}
+
+// Saves the avatar on this device, and on the account so other devices see it.
+function saveAvatar(id) {
+  if (id) settings.avatar = id;
+  else delete settings.avatar;
+  saveSettings();
+  renderProfile();
+  if (sb && profile && profile.mode !== 'guest') {
+    sb.auth.updateUser({ data: { blip_avatar: id || null } }).catch(() => {});
   }
 }
 
@@ -1364,6 +1384,17 @@ function closeProfileSetup() {
 
 $('#profile-card').addEventListener('click', () => openProfileSetup('name'));
 $('#ps-name-input').addEventListener('input', sayHello);
+$('#ps-avatars').addEventListener('click', (e) => {
+  const b = e.target.closest('.ps-av');
+  if (!b) return;
+  ps.avatar = ps.avatar === b.dataset.avatar ? '' : b.dataset.avatar;
+  for (const x of $$('.ps-av')) {
+    const on = x.dataset.avatar === ps.avatar;
+    x.classList.toggle('on', on);
+    x.setAttribute('aria-checked', String(on));
+  }
+  saveAvatar(ps.avatar);
+});
 $('#ps-name-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); $('#ps-next').click(); }
 });
@@ -1414,11 +1445,14 @@ function setProfile(p) {
 const PERSON_ICON = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.4-3.6 4.2-5.5 7.5-5.5s6.1 1.9 7.5 5.5"/></svg>';
 
 function renderProfile() {
+  const picked = settings.avatar && AVATARS[settings.avatar] ? settings.avatar : '';
   const photo = profile?.avatar ? `<img src="${esc(profile.avatar)}" alt="">` : PERSON_ICON;
   const name = displayName();
   const initial = name.charAt(0).toUpperCase();
-  $('#avatar').innerHTML = photo;
-  $('#settings-avatar').innerHTML = profile?.avatar ? photo : (initial || PERSON_ICON);
+  $('#avatar').innerHTML = picked ? avatarSVG(picked, { title: false }) : photo;
+  $('#settings-avatar').innerHTML = picked ? avatarSVG(picked, { title: false }) : profile?.avatar ? photo : (initial || PERSON_ICON);
+  $('#avatar-btn').classList.toggle('has-av', Boolean(picked));
+  $('#settings-avatar').classList.toggle('has-av', Boolean(picked));
   $('#settings-name').textContent = name || 'Add your name';
   $('#settings-sub').textContent = roleLabel() || profile?.email || 'Tell Blip a little about you';
   $('#account-line').textContent = !profile
@@ -1447,6 +1481,12 @@ async function fromSession(session) {
     avatar: meta.avatar_url || null,
     hasPassword: Boolean(meta.has_password),
   });
+  // An avatar picked on another device comes with the account.
+  if (meta.blip_avatar && AVATARS[meta.blip_avatar] && !settings.avatar) {
+    settings.avatar = meta.blip_avatar;
+    saveSettings();
+    renderProfile();
+  }
   // Pull the account's name and work before deciding whether to ask for them.
   if (!onboard.done) {
     await Promise.race([startSync(u.id), wait(4000)]);

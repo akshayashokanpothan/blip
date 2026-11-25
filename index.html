@@ -609,9 +609,11 @@
     <div id="ps-name" class="ob-panel">
       <div class="ob-step ps-step" aria-hidden="true" hidden>Step 2 of 4</div>
       <h1>What should Blip call you?</h1>
-      <p>Your name is only used to greet you. It stays on this device.</p>
+      <p>Your name is only used to greet you. Pick a face for your profile too.</p>
       <input id="ps-name-input" class="ps-input" type="text" autocomplete="name" autocapitalize="words" maxlength="60" placeholder="Your name">
       <p id="ps-hello" class="ps-hello" aria-live="polite"></p>
+      <div class="ps-av-label" id="ps-av-label">Pick an avatar</div>
+      <div id="ps-avatars" class="ps-avatars" role="radiogroup" aria-labelledby="ps-av-label"></div>
       <div class="ob-foot" style="margin-top:auto">
         <button id="ps-next" class="btn primary" type="button">Continue</button>
       </div>
@@ -779,6 +781,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
+  <script src="avatars.js"></script>
   <script src="sync.js"></script>
   <script src="app.js"></script>
 </body>
