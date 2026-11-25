@@ -512,6 +512,8 @@ function showCapPanel(name) {
   for (const p of ['listen', 'text', 'process', 'confirm']) {
     $(`#cap-${p}`).hidden = p !== name;
   }
+  // Boxes measured while hidden stay one line tall; size them now they show.
+  requestAnimationFrame(() => { for (const ta of $$(`#cap-${name} textarea[data-autogrow]`)) autoGrow(ta); });
 }
 
 function openCapture(mode = 'voice') {
@@ -752,7 +754,7 @@ function renderConfirm() {
     <li class="cap-item" data-idx="${i}">
       ${cap.items.length > 1 ? `<p class="cap-num">Task ${i + 1}</p>` : ''}
       <div class="cap-row">
-        <input type="text" data-f="text" value="${esc(it.text)}" aria-label="Task ${i + 1} title">
+        <textarea class="cap-task-title" data-f="text" data-autogrow data-oneline rows="1" aria-label="Task ${i + 1} title">${esc(it.text)}</textarea>
         <button class="icon-btn" type="button" data-act="edit-cap" aria-label="Edit task ${i + 1}" style="width:36px;height:36px">${ICON.pencil}</button>
       </div>
       <div class="cap-fields three">
@@ -781,7 +783,20 @@ function autoGrow(ta) {
   ta.style.height = `${ta.scrollHeight + 2}px`;
 }
 document.addEventListener('input', (e) => {
-  if (e.target.matches?.('textarea[data-autogrow]')) autoGrow(e.target);
+  const t = e.target;
+  if (t.matches?.('textarea[data-oneline]') && /\n/.test(t.value)) {
+    const at = t.selectionStart;
+    t.value = t.value.replace(/\s*\n+\s*/g, ' ');
+    t.setSelectionRange(Math.min(at, t.value.length), Math.min(at, t.value.length));
+  }
+  if (t.matches?.('textarea[data-autogrow]')) autoGrow(t);
+});
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (!t.matches?.('textarea[data-oneline]') || e.key !== 'Enter' || e.isComposing) return;
+  e.preventDefault();
+  if (t.id === 'nf-title') $('#nf-body').focus();
+  else t.blur();
 });
 // The task title wraps like a heading, but Enter still saves instead of adding a line.
 document.addEventListener('keydown', (e) => {
@@ -912,7 +927,7 @@ $('#cap-items').addEventListener('input', (e) => {
   const field = e.target.dataset.f;
   if (!li || !field) return;
   const it = cap.items[Number(li.dataset.idx)];
-  it[field] = e.target.value;
+  it[field] = field === 'text' ? e.target.value.replace(/\s*\n+\s*/g, ' ') : e.target.value;
 });
 $('#cap-items').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-act]');
@@ -920,7 +935,9 @@ $('#cap-items').addEventListener('click', (e) => {
   const li = btn.closest('[data-idx]');
   const it = cap.items[Number(li.dataset.idx)];
   if (btn.dataset.act === 'edit-cap') {
-    li.querySelector('input[data-f="text"]').focus();
+    const ta = li.querySelector('[data-f="text"]');
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
   } else if (btn.dataset.act === 'prio-cap') {
     it.priority = btn.dataset.v;
     for (const c of li.querySelectorAll('.prio-chip')) {
@@ -1113,6 +1130,7 @@ function renderNoteEditor() {
     return;
   }
   $('#nf-title').value = n.title;
+  requestAnimationFrame(() => autoGrow($('#nf-title')));
   $('#nf-body').value = n.body;
 }
 
@@ -2308,6 +2326,7 @@ function showView(name) {
   ui.view = name;
   root.dataset.view = name;
   for (const v of $$('.view')) v.hidden = v.id !== `view-${name}`;
+  requestAnimationFrame(() => { for (const ta of $$(`#view-${name} textarea[data-autogrow]`)) autoGrow(ta); });
   const tab = VIEW_TAB[name];
   for (const t of $$('[data-nav]')) {
     t.classList.toggle('on', t.dataset.nav === tab);
