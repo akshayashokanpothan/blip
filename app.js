@@ -5,7 +5,7 @@
 // v2: when you sign in (Supabase keys in config.js), sync.js also keeps tasks,
 // notes and profile settings in step across your devices.
 
-const APP_VERSION = '2.2.5';
+const APP_VERSION = '2.2.6';
 
 const TASKS_KEY = 'blip.tasks.v1';
 const NOTES_KEY = 'blip.notes.v1';
@@ -2008,6 +2008,9 @@ function closeOnboarding(justFinished = false) {
   $('#onboarding').hidden = true;
   renderProfile();
   if (justFinished && wasOpen) {
+    // Dark is the default look once onboarding is done, unless the person
+    // already picked a theme in Settings on this device.
+    if (!settings.themePicked) setTheme('dark');
     showView('home');
     const first = displayName().split(/\s+/)[0];
     toast(first ? `You’re all set, ${first}.` : 'You’re all set.');
@@ -2704,7 +2707,9 @@ function markTheme() {
 
 for (const b of $$('[data-theme-pick]')) {
   b.addEventListener('click', () => {
+    settings.themePicked = true;
     setTheme(b.dataset.themePick);
+    saveSettings();
     toast(`Theme: ${b.dataset.themePick === 'dark' ? 'Dark' : 'Light'}`);
   });
 }
