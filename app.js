@@ -177,14 +177,39 @@ function findTask(query) {
 }
 
 // ---------- local parser (no API key needed) ----------
-const FILLER = /^(ok(ay)?|so|hey|um+|uh+|please|i\s+(need|have|want|should|got|must)\s+to|i'?m\s+gonna|gonna|remind\s+me\s+to|add|todo|to\s+do)\s+/i;
+const FILLER = /^(ok(ay)?|so|hey|um+|uh+|please|i\s+(need|have|want|should|got|must)\s+to|i'?m\s+gonna|gonna|remind\s+me(\s+to)?|(create|creative|set\s+up|set|add|make)\s+(a\s+|an\s+)?(new\s+)?(reminder|task|to-?do)(\s+(to|for|that))?|add|todo|to\s+do)\s+/i;
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
+// Words that say when something happens. Used to tell "buy apples at 6 and
+// medicines at 9" (two tasks) from "call mom and dad at 6" (one task).
+const WHEN_CUE = /\b(\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?|o\s*['’]?\s*clock)|\d{1,2}:\d{2}|(at|by)\s+\d{1,2}|(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+o\s*['’]?\s*clock|today|tonight|tomorrow|morning|afternoon|evening|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i;
+
 function splitItems(text) {
-  return text
+  const parts = text
     .split(/\n|;|,|\b(?:and\s+)?also\b|\b(?:and\s+)?then\b|\bafter that\b/i)
     .map((s) => s.trim())
     .filter(Boolean);
+  // Split on "and" only when both sides say their own time or day.
+  const out = [];
+  for (const part of parts) {
+    const pieces = part.split(/\s+and\s+/i);
+    let cur = pieces[0];
+    for (const next of pieces.slice(1)) {
+      if (WHEN_CUE.test(cur) && WHEN_CUE.test(next)) { out.push(cur); cur = next; }
+      else cur += ' and ' + next;
+    }
+    out.push(cur);
+  }
+  return out.map((s) => s.trim()).filter(Boolean);
+}
+
+// Review order: earliest day first, then by time; untimed tasks follow,
+// morning before afternoon before evening.
+const SLOT_RANK = { morning: '08:00', afternoon: '13:00', evening: '18:00' };
+function byWhen(a, b) {
+  const ka = `${a.date || ''} ${a.time || SLOT_RANK[a.slot] || '99:99'}`;
+  const kb = `${b.date || ''} ${b.time || SLOT_RANK[b.slot] || '99:99'}`;
+  return ka < kb ? -1 : ka > kb ? 1 : 0;
 }
 
 // Pulls "tomorrow", "on friday", "at 6 pm", "evening" out of one item.
@@ -684,7 +709,7 @@ async function runProcess(text) {
 
   cap.transcript = text;
   cap.other = other;
-  cap.items = adds.map((a) => ({
+  cap.items = [...adds].sort(byWhen).map((a) => ({
     id: uid(),
     text: a.text,
     priority: normPriority(a.priority),
@@ -708,6 +733,7 @@ function renderConfirm() {
   renderTranscript();
   $('#cap-items').innerHTML = cap.items.map((it, i) => `
     <li class="cap-item" data-idx="${i}">
+      ${cap.items.length > 1 ? `<p class="cap-num">Task ${i + 1}</p>` : ''}
       <div class="cap-row">
         <input type="text" data-f="text" value="${esc(it.text)}" aria-label="Task ${i + 1} title">
         <button class="icon-btn" type="button" data-act="edit-cap" aria-label="Edit task ${i + 1}" style="width:36px;height:36px">${ICON.pencil}</button>
