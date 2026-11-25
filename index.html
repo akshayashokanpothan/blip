@@ -311,7 +311,12 @@
             </select>
           </label>
         </div>
-        <label class="field"><span>Notes</span><textarea id="tf-notes" rows="4" placeholder="Add a note"></textarea></label>
+        <div class="field"><span>Notes</span>
+          <div class="notes-field">
+            <textarea id="tf-notes" rows="2" data-autogrow placeholder="Add notes (optional)" aria-label="Notes"></textarea>
+            <button class="dictate" type="button" data-dictate aria-label="Speak notes" aria-pressed="false"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+          </div>
+        </div>
         <div class="form-actions">
           <button class="btn primary" type="submit">Save</button>
           <button id="tf-delete" class="btn danger-ghost" type="button">Delete task</button>

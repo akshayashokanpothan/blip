@@ -125,6 +125,7 @@ const ICON = {
   clock: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   bell: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 20a2 2 0 0 0 4 0"/></svg>',
   trash: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>',
+  mic: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
   pencil: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
 };
 
@@ -446,6 +447,7 @@ function openCapture(mode = 'voice') {
 }
 
 function closeCapture() {
+  stopDictation();
   captureOpen = false;
   cancelVoice();
   $('#capture').hidden = true;
@@ -676,8 +678,115 @@ function renderConfirm() {
         <label><span>End time <span class="opt">(optional)</span></span><input type="time" data-f="endTime" value="${esc(it.endTime)}"></label>
       </div>
       <div class="prio-row" role="group" aria-label="Priority">${priorityChips(it.priority)}</div>
+      ${notesField(`data-f="notes" aria-label="Notes for task ${i + 1}"`, it.notes)}
     </li>`).join('');
+  for (const ta of $$('#cap-items textarea')) autoGrow(ta);
 }
+
+// A two-line notes box that grows as you type, with a mic for dictation.
+function notesField(attrs, value = '') {
+  return `<div class="notes-field">
+      <textarea ${attrs} rows="2" data-autogrow placeholder="Add notes (optional)">${esc(value)}</textarea>
+      <button class="dictate" type="button" data-dictate aria-label="Speak notes" aria-pressed="false">${ICON.mic}</button>
+    </div>`;
+}
+
+function autoGrow(ta) {
+  // Hidden boxes measure as 0; leave them at their two-line default.
+  if (!ta.offsetParent) { ta.style.height = ''; return; }
+  ta.style.height = 'auto';
+  ta.style.height = `${ta.scrollHeight + 2}px`;
+}
+document.addEventListener('input', (e) => {
+  if (e.target.matches?.('textarea[data-autogrow]')) autoGrow(e.target);
+});
+
+// ---------- dictation into a text box ----------
+// Tap the mic next to a notes box and speak; the words are added to the box.
+// Stops on a second tap, or 3 seconds after the last word.
+let dictation = null;
+
+function stopDictation() {
+  if (!dictation) return;
+  const d = dictation;
+  dictation = null;
+  clearTimeout(d.timer);
+  d.btn.classList.toggle('on', false);
+  d.btn.setAttribute('aria-pressed', 'false');
+  if (d.rec) {
+    d.rec.onend = null;
+    d.rec.onresult = null;
+    try { d.rec.stop(); } catch { /* already stopped */ }
+  }
+  d.ta.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function startDictation(ta, btn) {
+  if (dictation?.ta === ta) { stopDictation(); return; }
+  stopDictation();
+  if (!SpeechRec) {
+    toast('Voice isn’t supported in this browser. Use the keyboard’s mic.');
+    return;
+  }
+  const base = ta.value.replace(/\s+$/, '');
+  const d = { ta, btn, carried: '', heard: '', timer: null, rec: null };
+  dictation = d;
+  btn.classList.toggle('on', true);
+  btn.setAttribute('aria-pressed', 'true');
+
+  const write = () => {
+    const spoken = [d.carried, d.heard].filter(Boolean).join(' ');
+    const text = spoken ? spoken.charAt(0).toUpperCase() + spoken.slice(1) : '';
+    const sep = base && text ? (/[.!?]$/.test(base) ? ' ' : '. ') : '';
+    ta.value = base + sep + text;
+    autoGrow(ta);
+  };
+  const arm = (ms) => {
+    clearTimeout(d.timer);
+    d.timer = setTimeout(() => { if (dictation === d) stopDictation(); }, ms);
+  };
+  const begin = () => {
+    const rec = new SpeechRec();
+    d.rec = rec;
+    rec.lang = 'en-IN';
+    rec.interimResults = true;
+    rec.continuous = true;
+    rec.onresult = (e) => {
+      d.heard = joinResults(e.results);
+      write();
+      arm(SILENCE_MS);
+    };
+    rec.onerror = (e) => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        toast('Allow microphone access in your browser settings.');
+        stopDictation();
+      }
+    };
+    // Phones end sessions on short pauses; keep going until the silence timer.
+    rec.onend = () => {
+      if (dictation !== d) return;
+      d.carried = [d.carried, d.heard].filter(Boolean).join(' ');
+      d.heard = '';
+      try { begin(); } catch { stopDictation(); }
+    };
+    rec.start();
+  };
+  try {
+    begin();
+    arm(8000);
+    haptic();
+  } catch {
+    stopDictation();
+    toast('Couldn’t start the mic.');
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest?.('[data-dictate]');
+  if (!btn) return;
+  const ta = btn.closest('.notes-field').querySelector('textarea');
+  startDictation(ta, btn);
+});
 
 // The "You said" box: read-only quote with an edit button, or a text area.
 function renderTranscript() {
@@ -762,6 +871,7 @@ $('#cap-add').addEventListener('click', () => {
       date: it.date || todayKey(),
       time: it.time,
       endTime: it.endTime,
+      notes: (it.notes || '').trim(),
     }));
   }
   const log = applyActions(cap.other);
@@ -888,6 +998,7 @@ function renderTaskDetail() {
   $('#tf-reminder').checked = Boolean(t.reminder && t.time);
   $('#tf-repeat').value = t.repeat || 'none';
   $('#tf-notes').value = t.notes || '';
+  autoGrow($('#tf-notes'));
   setPriority(t.priority);
 }
 

@@ -643,3 +643,12 @@ main {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
   .wave span { height: 30px; }
 }
+
+/* Notes box with dictation mic (review screen and task screen). */
+.notes-field { position: relative; }
+.notes-field textarea, .field .notes-field textarea { display: block; width: 100%; min-height: calc(2 * 1.45em + 22px); max-height: 40vh; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 10px 48px 10px 12px; background: var(--card); color: var(--ink); font: inherit; font-size: 15px; line-height: 1.45; resize: none; outline: none; }
+.notes-field textarea:focus { border-color: var(--focus); }
+.notes-field .dictate { position: absolute; right: 6px; top: 6px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
+.notes-field .dictate svg.i { width: 18px; height: 18px; }
+.notes-field .dictate:hover { background: var(--soft); color: var(--ink); }
+.notes-field .dictate.on { background: var(--p-high); color: #fff; animation: breathe 1.4s var(--ease) infinite; }
