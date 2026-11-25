@@ -4,4 +4,6 @@
 window.BLIP_CONFIG = {
   supabaseUrl: 'https://ukgmeocyybqsmiopzxai.supabase.co',
   supabaseAnonKey: 'sb_publishable_oODhHCHzrPxkLpbalfktAg_FFjaj86Q',
+  // Turn on after enabling the Google provider in Supabase.
+  googleSignIn: false,
 };

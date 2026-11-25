@@ -480,8 +480,9 @@
 
       <p class="section-label">Data &amp; privacy</p>
       <div class="settings-group">
-        <p class="card-copy" style="padding:14px 16px 0">Tasks and notes stay on this device. Text goes to Claude only when you add an API key.</p>
+        <p class="card-copy" style="padding:14px 16px 0">Tasks and notes are saved on this device, and also to your account when you sign in. Text goes to Claude only when you add an API key.</p>
         <button id="clear-data" class="row-link danger" type="button">Delete all tasks</button>
+        <button id="reset-device" class="row-link danger" type="button">Reset Blip on this device</button>
       </div>
 
       <p class="section-label">Account</p>
@@ -581,6 +582,7 @@
     </div>
 
     <div id="ps-name" class="ob-panel">
+      <div class="ob-step ps-step" aria-hidden="true" hidden>Step 2 of 4</div>
       <h1>What should Blip call you?</h1>
       <p>Your name is only used to greet you. It stays on this device.</p>
       <input id="ps-name-input" class="ps-input" type="text" autocomplete="name" autocapitalize="words" maxlength="60" placeholder="Your name">
@@ -591,6 +593,7 @@
     </div>
 
     <div id="ps-role" class="ob-panel" hidden>
+      <div class="ob-step ps-step" aria-hidden="true" hidden>Step 2 of 4</div>
       <h1>What do you do?</h1>
       <p>Pick the closest one. Blip uses it to word your tasks the way you would.</p>
       <div id="ps-roles" class="ps-roles" role="radiogroup" aria-label="Your work">
@@ -646,8 +649,8 @@
 
   <!-- Onboarding: welcome, permissions, then sign-in -->
   <section id="onboarding" class="onboard" hidden aria-label="Welcome to Blip">
-    <div id="ob-welcome" class="ob-panel">
-      <div class="ob-art" aria-hidden="true">
+    <div id="ob-auth" class="ob-panel">
+      <div class="ob-art sm" aria-hidden="true">
         <div class="ob-wave" style="left:50%;transform:translateX(-50%)">
           <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
         </div>
@@ -657,18 +660,46 @@
           <i></i><i></i><i></i>
         </div>
       </div>
-      <h1>Turn your voice into action.</h1>
-      <p>Capture tasks, notes, and reminders—just by speaking.</p>
+      <h1>Say it. Get it done.</h1>
+      <p>Sign in to keep your tasks, notes and reminders on all your devices.</p>
+      <div class="auth-stack" style="margin-top:8px">
+        <button id="google-btn" class="btn google" type="button" hidden>Continue with Google</button>
+        <p id="google-or" class="or" hidden>or</p>
+        <form id="email-form" class="auth-stack">
+          <input id="email" type="email" placeholder="you@example.com" autocomplete="email" required>
+          <div class="pw-wrap">
+            <input id="password" type="password" placeholder="Password (optional)" autocomplete="current-password">
+            <button id="pw-show" class="pw-show" type="button" aria-label="Show password" aria-pressed="false">Show</button>
+          </div>
+          <button id="email-submit" class="btn primary" type="submit">Email me a sign-in link</button>
+          <div class="auth-links">
+            <button id="auth-mode" class="link" type="button">New here? Create an account</button>
+            <button id="forgot-pw" class="link" type="button">Forgot password?</button>
+          </div>
+        </form>
+        <p id="auth-msg" class="auth-msg" role="status" aria-live="polite"></p>
+      </div>
       <div class="ob-foot" style="margin-top:auto">
-        <div class="dots" aria-hidden="true"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></div>
-        <button id="ob-start" class="btn primary" type="button">Get Started</button>
-        <button id="ob-skip" class="link" type="button">Skip</button>
+        <button id="skip-auth" class="link" type="button">Continue without an account</button>
+      </div>
+    </div>
+
+    <div id="ob-install" class="ob-panel" hidden>
+      <div class="ob-step" aria-hidden="true">Step 3 of 4</div>
+      <img class="install-mark" src="assets/logo/symbol-color.svg" alt="" style="align-self:flex-start">
+      <h1>Put Blip on your home screen</h1>
+      <p id="ob-install-text">Open Blip in one tap, full screen, like any other app.</p>
+      <ol id="ob-install-steps" class="steps" hidden></ol>
+      <div class="ob-foot" style="margin-top:auto">
+        <button id="ob-install-go" class="btn primary" type="button">Install Blip</button>
+        <button id="ob-install-skip" class="link" type="button">Not now</button>
       </div>
     </div>
 
     <div id="ob-perms" class="ob-panel" hidden>
-      <h1>Let’s set up Blip</h1>
-      <p>Blip only asks for what it needs, and you can change any of this later.</p>
+      <div class="ob-step" aria-hidden="true">Step 4 of 4</div>
+      <h1>Two quick permissions</h1>
+      <p>Blip only asks for what it needs. You can change these later in Settings.</p>
       <div class="perm-list">
         <div class="perm-row" id="perm-mic">
           <span class="ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg></span>
@@ -687,34 +718,10 @@
         </div>
       </div>
       <div class="ob-foot" style="margin-top:auto">
-        <button id="perm-continue" class="btn primary" type="button">Continue</button>
+        <button id="perm-continue" class="btn primary" type="button">Start using Blip</button>
       </div>
     </div>
 
-    <div id="ob-auth" class="ob-panel" hidden>
-      <h1>Sign in to Blip</h1>
-      <p>Continue with Google or your email to keep your tasks with you.</p>
-      <div class="auth-stack" style="margin-top:8px">
-        <button id="google-btn" class="btn google" type="button">Continue with Google</button>
-        <p class="or">or</p>
-        <form id="email-form" class="auth-stack">
-          <input id="email" type="email" placeholder="you@example.com" autocomplete="email" required>
-          <div class="pw-wrap">
-            <input id="password" type="password" placeholder="Password (optional)" autocomplete="current-password">
-            <button id="pw-show" class="pw-show" type="button" aria-label="Show password" aria-pressed="false">Show</button>
-          </div>
-          <button id="email-submit" class="btn primary" type="submit">Email me a sign-in link</button>
-          <div class="auth-links">
-            <button id="auth-mode" class="link" type="button">New here? Create an account</button>
-            <button id="forgot-pw" class="link" type="button">Forgot password?</button>
-          </div>
-        </form>
-        <p id="auth-msg" class="auth-msg" role="status" aria-live="polite"></p>
-      </div>
-      <div class="ob-foot" style="margin-top:auto">
-        <button id="skip-auth" class="link" type="button">Skip for now</button>
-      </div>
-    </div>
   </section>
 
   <!-- Install assistant -->

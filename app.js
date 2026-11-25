@@ -13,6 +13,18 @@ const SETTINGS_KEY = 'blip.settings.v1';
 const PROFILE_KEY = 'blip.profile.v1';
 const INSTALL_DISMISS_KEY = 'blip.installDismissed.v1';
 const SPLASH_KEY = 'blip.splashShown';
+// Version 2 starts every device fresh, once: earlier test data, sign-ins and
+// onboarding progress are removed so everyone goes through the new flow.
+const RESET_FLAG = 'blip.reset.v2';
+function wipeDevice() {
+  for (const k of Object.keys(localStorage)) {
+    if (k.startsWith('blip.') || k.startsWith('sb-')) localStorage.removeItem(k);
+  }
+}
+if (!localStorage.getItem(RESET_FLAG)) {
+  wipeDevice();
+  localStorage.setItem(RESET_FLAG, '1');
+}
 const MODEL = 'claude-haiku-5-5';
 const THEMES = ['light', 'dark'];
 
@@ -1242,9 +1254,11 @@ function roleLabel() {
   return settings.role === 'other' ? (settings.roleOther || '').trim() : ROLES[settings.role] || '';
 }
 
-const ps = { step: 'name', role: '' };
+const ps = { step: 'name', role: '', onboarding: false };
 
-function openProfileSetup(step = 'name') {
+function openProfileSetup(step = 'name', { onboarding = false } = {}) {
+  ps.onboarding = onboarding;
+  for (const el of $$('.ps-step')) el.hidden = !onboarding;
   ps.role = settings.role || '';
   $('#ps-name-input').value = displayName();
   $('#ps-role-other').value = settings.roleOther || '';
@@ -1258,6 +1272,7 @@ function showProfileStep(step) {
   $('#ps-name').hidden = step !== 'name';
   $('#ps-role').hidden = step !== 'role';
   for (const d of $$('[data-ps-dot]')) d.classList.toggle('on', d.dataset.psDot === step);
+  $('#ps-back').style.visibility = ps.onboarding && step === 'name' ? 'hidden' : '';
   if (step === 'name') {
     sayHello();
     setTimeout(() => $('#ps-name-input').focus(), 200);
@@ -1289,6 +1304,11 @@ function closeProfileSetup() {
   $('#profile-setup').hidden = true;
   renderProfile();
   renderHome();
+  if (ps.onboarding) {
+    ps.onboarding = false;
+    onboard.profile = true;
+    nextOnboardingStep();
+  }
 }
 
 $('#profile-card').addEventListener('click', () => openProfileSetup('name'));
@@ -1309,10 +1329,13 @@ $('#ps-roles').addEventListener('click', (e) => {
   if (ps.role === 'other') $('#ps-role-other').focus();
 });
 $('#ps-done').addEventListener('click', () => {
+  const during = ps.onboarding;
   saveProfileSetup();
   closeProfileSetup();
-  const first = displayName().split(/\s+/)[0];
-  toast(first ? `Saved. Hi, ${first}!` : 'Saved');
+  if (!during) {
+    const first = displayName().split(/\s+/)[0];
+    toast(first ? `Saved. Hi, ${first}!` : 'Saved');
+  }
 });
 $('#ps-skip').addEventListener('click', () => {
   if (ps.step === 'name') showProfileStep('role');
@@ -1369,12 +1392,17 @@ async function fromSession(session) {
   setProfile({
     mode: u.app_metadata?.provider === 'google' ? 'google' : 'email',
     email: u.email || '',
-    name: meta.full_name || meta.name || (u.email || 'Friend').split('@')[0],
+    name: meta.full_name || meta.name || '',
     avatar: meta.avatar_url || null,
     hasPassword: Boolean(meta.has_password),
   });
-  finishOnboarding();
-  startSync(u.id);
+  // Pull the account's name and work before deciding whether to ask for them.
+  if (!onboard.done) {
+    await Promise.race([startSync(u.id), wait(4000)]);
+    nextOnboardingStep();
+  } else {
+    startSync(u.id);
+  }
 }
 
 // Email sign-in has three paths on one form:
@@ -1427,8 +1455,8 @@ async function sendPasswordReset(email) {
 
 async function signInWithEmail(email) {
   if (!sb) {
-    setProfile({ mode: 'email', email, name: email.split('@')[0], avatar: null });
-    finishOnboarding();
+    setProfile({ mode: 'email', email, name: '', avatar: null });
+    nextOnboardingStep();
     return;
   }
   const { error } = await sb.auth.signInWithOtp({
@@ -1451,24 +1479,96 @@ async function signInWithGoogle() {
   if (error) throw error;
 }
 
-// Onboarding has three steps: welcome, permissions, sign-in.
+// ---------- onboarding ----------
+// First run, in order: 1 sign in, 2 name and work, 3 install, 4 permissions,
+// then home. Each step is remembered, so the flow never repeats a finished
+// step, and it only runs again after signing out (and then only the sign-in
+// step, plus anything still missing). Name and work come from the account
+// when they were already set on another device.
+const ONBOARD_KEY = 'blip.onboarding.v2';
+const onboard = loadJSON(ONBOARD_KEY, { profile: false, install: false, perms: false, done: false });
+const saveOnboard = () => localStorage.setItem(ONBOARD_KEY, JSON.stringify(onboard));
+let onboardStep = null;
+
 function showOnboardStep(step) {
-  $('#onboarding').hidden = false;
-  $('#ob-welcome').hidden = step !== 'welcome';
-  $('#ob-perms').hidden = step !== 'perms';
+  onboardStep = step;
+  $('#onboarding').hidden = !['auth', 'install', 'perms'].includes(step);
   $('#ob-auth').hidden = step !== 'auth';
+  $('#ob-install').hidden = step !== 'install';
+  $('#ob-perms').hidden = step !== 'perms';
   if (step === 'perms') renderPerms();
+  if (step === 'install') renderInstallStep();
 }
 
-function showOnboarding(step = 'welcome') {
-  showOnboardStep(step);
+// Works out which step is still needed and shows it. Safe to call any time.
+function nextOnboardingStep() {
+  if (!profile) { showOnboardStep('auth'); return; }
+  if (onboard.done) { closeOnboarding(); return; }
+  if (!onboard.profile && (displayName() || roleLabel())) onboard.profile = true;
+  if (!onboard.install && (isStandalone() || !installSupported())) onboard.install = true;
+  saveOnboard();
+  if (!onboard.profile) {
+    if (onboardStep !== 'profile') {
+      showOnboardStep('profile');
+      openProfileSetup('name', { onboarding: true });
+    }
+    return;
+  }
+  if (!onboard.install) { showOnboardStep('install'); return; }
+  if (!onboard.perms) { showOnboardStep('perms'); return; }
+  onboard.done = true;
+  saveOnboard();
+  closeOnboarding(true);
 }
 
-function finishOnboarding() {
-  if ($('#onboarding').hidden) return;
+function closeOnboarding(justFinished = false) {
+  const wasOpen = onboardStep !== null;
+  onboardStep = null;
   $('#onboarding').hidden = true;
   renderProfile();
-  setTimeout(maybeShowInstall, 700);
+  if (justFinished && wasOpen) {
+    showView('home');
+    const first = displayName().split(/\s+/)[0];
+    toast(first ? `You’re all set, ${first}.` : 'You’re all set.');
+  }
+}
+
+// Kept for callers that just want the sign-in screen (sign out, Settings).
+function showOnboarding() {
+  onboard.done = false;
+  saveOnboard();
+  nextOnboardingStep();
+}
+
+function renderInstallStep() {
+  const text = $('#ob-install-text');
+  const steps = $('#ob-install-steps');
+  const go = $('#ob-install-go');
+  const skip = $('#ob-install-skip');
+  skip.textContent = 'Not now';
+  if (deferredPrompt) {
+    text.textContent = 'Open Blip in one tap, full screen, like any other app.';
+    steps.hidden = true;
+    go.hidden = false;
+  } else if (isIOSSafari()) {
+    text.textContent = 'Three quick steps in Safari:';
+    steps.innerHTML = '<li>Tap the Share button at the bottom of the screen.</li>'
+      + '<li>Scroll down and tap “Add to Home Screen”.</li>'
+      + '<li>Tap Add in the top-right corner.</li>';
+    steps.hidden = false;
+    go.hidden = true;
+    skip.textContent = 'Done';
+  } else if (isIOS()) {
+    text.textContent = 'On iPhone, Blip installs from Safari. Open this page in Safari, tap Share, then “Add to Home Screen”.';
+    steps.hidden = true;
+    go.hidden = true;
+    skip.textContent = 'Continue';
+  } else {
+    text.textContent = 'Look for the install icon in your browser’s address bar, or open the browser menu and choose “Install Blip”.';
+    steps.hidden = true;
+    go.hidden = true;
+    skip.textContent = 'Continue';
+  }
 }
 
 async function permState(name) {
@@ -1607,20 +1707,13 @@ function dismissInstall() {
   closeAll();
 }
 
-// Offer install once per session, right after sign-in, unless dismissed recently.
-function maybeShowInstall() {
-  if (!profile || !installSupported() || recentlyDismissed()) return;
-  if (sessionStorage.getItem('blip.installShown')) return;
-  sessionStorage.setItem('blip.installShown', '1');
-  openInstall();
-}
 
 function initAccountAndInstall() {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
     refreshInstallEntries();
-    if (profile) maybeShowInstall();
+    if (onboardStep === 'install') renderInstallStep();
   });
   window.addEventListener('appinstalled', () => {
     deferredPrompt = null;
@@ -1634,9 +1727,25 @@ function initAccountAndInstall() {
   $('#side-install').addEventListener('click', openInstall);
 
   // Onboarding
-  $('#ob-start').addEventListener('click', () => showOnboardStep('perms'));
-  $('#ob-skip').addEventListener('click', () => showOnboardStep('auth'));
-  $('#perm-continue').addEventListener('click', () => showOnboardStep('auth'));
+  $('#ob-install-go').addEventListener('click', async () => {
+    if (deferredPrompt) {
+      const prompt = deferredPrompt;
+      prompt.prompt();
+      await prompt.userChoice.catch(() => null);
+      deferredPrompt = null;
+      refreshInstallEntries();
+    }
+    onboard.install = true;
+    nextOnboardingStep();
+  });
+  $('#ob-install-skip').addEventListener('click', () => {
+    onboard.install = true;
+    nextOnboardingStep();
+  });
+  $('#perm-continue').addEventListener('click', () => {
+    onboard.perms = true;
+    nextOnboardingStep();
+  });
   for (const b of $$('[data-perm]')) {
     b.addEventListener('click', () => {
       if (b.dataset.perm === 'mic') askMic();
@@ -1695,19 +1804,26 @@ function initAccountAndInstall() {
   });
   renderAuthForm();
   $('#skip-auth').addEventListener('click', () => {
-    setProfile({ mode: 'guest', name: 'Guest', email: '', avatar: null });
-    finishOnboarding();
+    setProfile({ mode: 'guest', name: '', email: '', avatar: null });
+    nextOnboardingStep();
   });
 
   $('#signout').addEventListener('click', async () => {
     if (!profile || profile.mode === 'guest') {
-      showOnboarding('auth');
+      setProfile(null);
+      showOnboarding();
       return;
     }
     await stopSync();
     if (sb) await sb.auth.signOut();
     setProfile(null);
-    showOnboarding('auth');
+    // Name and work belonged to that account; the next person sets their own.
+    delete settings.displayName;
+    delete settings.role;
+    delete settings.roleOther;
+    saveSettings();
+    onboard.profile = false;
+    showOnboarding();
   });
 
   refreshInstallEntries();
@@ -1725,8 +1841,11 @@ async function initAuth() {
     });
   }
   renderProfile();
-  authMsg(sb ? '' : 'Preview mode: connect Supabase in config.js to verify email and enable Google.');
-  if (!profile) showOnboarding('welcome');
+  const google = Boolean(sb && CFG.googleSignIn);
+  $('#google-btn').hidden = !google;
+  $('#google-or').hidden = !google;
+  authMsg(sb ? '' : 'Preview mode: email isn’t verified until Supabase is connected.');
+  nextOnboardingStep();
 }
 
 // ---------- password (v2) ----------
@@ -1808,7 +1927,7 @@ function renderSyncLine(status, last) {
 }
 
 function startSync(userId) {
-  if (!sb || !window.createBlipSync) return;
+  if (!sb || !window.createBlipSync) return Promise.resolve();
   if (!blipSync) {
     blipSync = window.createBlipSync({
       client: sb,
@@ -1856,7 +1975,7 @@ function startSync(userId) {
       if (document.visibilityState === 'visible') blipSync.resume();
     });
   }
-  blipSync.start(userId);
+  return blipSync.start(userId);
 }
 
 async function stopSync() {
@@ -2325,6 +2444,15 @@ $('#save-key').addEventListener('click', () => {
   saveSettings();
   renderSettings();
   toast(settings.apiKey ? 'API key saved on this device' : 'Offline parsing is on');
+});
+
+$('#reset-device').addEventListener('click', async () => {
+  if (!confirm('Reset Blip on this device? This signs you out and removes tasks, notes, your name and setup from this device. Anything synced to your account stays there.')) return;
+  try { await stopSync(); } catch {}
+  try { if (sb) await sb.auth.signOut(); } catch {}
+  wipeDevice();
+  localStorage.setItem(RESET_FLAG, '1');
+  location.reload();
 });
 
 $('#clear-data').addEventListener('click', () => {
