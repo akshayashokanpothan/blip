@@ -740,6 +740,13 @@ function autoGrow(ta) {
 document.addEventListener('input', (e) => {
   if (e.target.matches?.('textarea[data-autogrow]')) autoGrow(e.target);
 });
+// The task title wraps like a heading, but Enter still saves instead of adding a line.
+document.addEventListener('keydown', (e) => {
+  if (e.target.id === 'tf-title' && e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    $('#task-form').requestSubmit();
+  }
+});
 
 // ---------- dictation into a text box ----------
 // Tap the mic next to a notes box and speak; the words are added to the box.
@@ -1032,6 +1039,7 @@ function renderTaskDetail() {
   $('#tf-repeat').value = t.repeat || 'none';
   $('#tf-notes').value = t.notes || '';
   autoGrow($('#tf-notes'));
+  requestAnimationFrame(() => autoGrow($('#tf-title')));
   setPriority(t.priority);
 }
 

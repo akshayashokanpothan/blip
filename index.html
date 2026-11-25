@@ -284,27 +284,32 @@
         <span style="width:42px"></span>
       </div>
       <form id="task-form" class="form-stack" autocomplete="off">
-        <input id="tf-title" class="detail-title" type="text" aria-label="Task title" required>
+        <textarea id="tf-title" class="detail-title" rows="1" data-autogrow aria-label="Task title" required></textarea>
         <button id="tf-done" class="done-toggle" type="button" aria-pressed="false">
           <span class="check"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
           <span id="tf-done-label">Mark complete</span>
         </button>
-        <div class="settings-group">
-          <label class="setting-row"><span class="grow"><strong>Date</strong></span><input id="tf-date" type="date" aria-label="Date"></label>
-          <label class="setting-row"><span class="grow"><strong>Start time</strong></span><input id="tf-time" type="time" aria-label="Start time"></label>
-          <label class="setting-row"><span class="grow"><strong>End time</strong></span><input id="tf-end" type="time" aria-label="End time"></label>
-          <div class="setting-row"><span class="grow"><strong>Priority</strong></span>
+        <div class="detail-card">
+          <div class="cap-fields">
+            <label class="full">Date<input id="tf-date" type="date" aria-label="Date"></label>
+            <label>Start time<input id="tf-time" type="time" aria-label="Start time"></label>
+            <label>End time<input id="tf-end" type="time" aria-label="End time"></label>
+          </div>
+          <div class="detail-prio">
+            <span class="detail-label">Priority</span>
             <div class="prio-row" role="group" aria-label="Priority">
               <button type="button" class="prio-chip p-high" data-prio="high"><span class="dot"></span>Urgent</button>
               <button type="button" class="prio-chip p-medium on" data-prio="medium"><span class="dot"></span>Moderate</button>
               <button type="button" class="prio-chip p-low" data-prio="low"><span class="dot"></span>Low</button>
             </div>
           </div>
-          <label class="setting-row"><span class="grow"><strong>Reminder</strong><span class="hint">Notifies you 10 minutes before</span></span>
+        </div>
+        <div class="settings-group">
+          <label class="setting-row" style="border-top:0"><span class="grow"><strong>Reminder</strong><span class="hint">Notifies you 10 minutes before</span></span>
             <span class="switch"><input id="tf-reminder" type="checkbox" aria-label="Reminder"><span class="track"></span></span>
           </label>
           <label class="setting-row"><span class="grow"><strong>Repeat</strong></span>
-            <select id="tf-repeat" aria-label="Repeat" style="border:0;outline:0;font-size:15px;color:var(--muted)">
+            <select id="tf-repeat" class="row-select" aria-label="Repeat">
               <option value="none">Does not repeat</option>
               <option value="daily">Every day</option>
               <option value="weekly">Every week</option>
