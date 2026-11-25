@@ -1,7 +1,7 @@
 // Network-first with cache fallback, so Blip opens offline.
 // Bump CACHE when you change app files so old copies are dropped.
-const CACHE = 'blip-v39';
-const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icon.svg', 'assets/brand/brand-tokens.css', 'assets/logo/symbol-color.svg', 'icons/app-icon-192.png', 'icons/app-icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'config.js', 'sync.js', 'avatars.js', 'headlines.js'];
+const CACHE = 'blip-v40';
+const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icon.svg', 'assets/brand/brand-tokens.css', 'assets/logo/symbol-color.svg', 'icons/app-icon-192.png', 'icons/app-icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'config.js', 'sync.js', 'avatars.js', 'headlines.js', 'reminders.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
@@ -32,6 +32,24 @@ self.addEventListener('fetch', (e) => {
       })
       .catch(() => caches.match(e.request))
   );
+});
+
+// A reminder pushed by the server while Blip may be closed.
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { title: 'Blip', body: e.data?.text() || '' }; }
+  const title = d.title || 'Blip reminder';
+  e.waitUntil(self.registration.showNotification(title, {
+    body: d.body || '',
+    icon: 'icons/app-icon-192.png',
+    badge: 'icons/app-icon-192.png',
+    tag: d.tag || `blip-${d.taskId || 'x'}`,
+    renotify: true,
+    requireInteraction: Boolean(d.now),
+    vibrate: [200, 100, 200],
+    timestamp: d.ts || Date.now(),
+    data: { taskId: d.taskId || null },
+  }));
 });
 
 // Tapping a reminder focuses Blip (or opens it) on that task.

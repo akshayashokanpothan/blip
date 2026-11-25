@@ -485,6 +485,11 @@
           <span class="grow"><strong>Reminders and notifications</strong><span id="notif-hint" class="hint"></span></span>
           <button id="notif-btn" class="pill-btn" type="button">Allow</button>
         </div>
+        <div class="setting-row remind-row">
+          <span class="grow"><strong>Remind me</strong><span id="remind-hint" class="hint"></span></span>
+          <div id="remind-opts" class="remind-opts" role="group" aria-label="When to remind you"></div>
+          <button id="remind-reset" class="link" type="button" hidden>Back to default</button>
+        </div>
         <div id="notif-test-row" class="setting-row" hidden>
           <span class="grow"><strong>Test reminder</strong><span class="hint">Sends a sample notification now</span></span>
           <button id="notif-test" class="pill-btn" type="button">Send test</button>
@@ -783,6 +788,7 @@
   <script src="config.js"></script>
   <script src="avatars.js"></script>
   <script src="headlines.js"></script>
+  <script src="reminders.js"></script>
   <script src="sync.js"></script>
   <script src="app.js"></script>
 </body>

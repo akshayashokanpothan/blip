@@ -763,3 +763,11 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
 .env-badge { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; margin-left: 8px; border-radius: 999px; background: #F5B83D; color: #3A2A00; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; flex: none; }
 .topbar .env-badge { margin-right: auto; }
 .sidebar .env-badge { align-self: flex-start; margin: 6px 0 0 12px; }
+
+/* Reminder choices in Settings */
+.remind-row { flex-direction: column; align-items: stretch; gap: 10px; }
+.remind-opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.remind-chip { height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--ink); font-size: 14px; font-weight: 500; cursor: pointer; }
+.remind-chip.on { background: var(--fab); border-color: var(--fab); color: var(--fab-ink, #fff); }
+.remind-chip:disabled { cursor: default; opacity: 1; }
+.remind-row .link { align-self: flex-start; padding: 0; }

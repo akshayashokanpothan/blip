@@ -6,4 +6,7 @@ window.BLIP_CONFIG = {
   supabaseAnonKey: 'sb_publishable_oODhHCHzrPxkLpbalfktAg_FFjaj86Q',
   // Turn on after enabling the Google provider in Supabase.
   googleSignIn: false,
+  // Background reminders: paste the VAPID public key here after following
+  // docs/push-setup.md. Empty means reminders only ring while Blip is open.
+  vapidPublicKey: '',
 };

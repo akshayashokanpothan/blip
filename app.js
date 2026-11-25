@@ -1229,6 +1229,7 @@ function renderSettings() {
 }
 
 function renderNotifButton() {
+  renderRemindOptions();
   const btn = $('#notif-btn');
   const hint = $('#notif-hint');
   $('#notif-test-row').hidden = true;
@@ -1239,7 +1240,11 @@ function renderNotifButton() {
   } else if (Notification.permission === 'granted') {
     btn.disabled = true;
     btn.textContent = 'On';
-    hint.textContent = 'You get a notification 10 minutes before each timed task.';
+    hint.textContent = pushCovers()
+      ? 'On. Reminders arrive even when Blip is closed.'
+      : profile && profile.mode !== 'guest' && CFG.vapidPublicKey
+        ? 'On. Reminders arrive while Blip is open or in the background.'
+        : 'On. Sign in so reminders arrive even when Blip is closed.';
     $('#notif-test-row').hidden = false;
   } else if (Notification.permission === 'denied') {
     btn.disabled = true;
@@ -1248,7 +1253,7 @@ function renderNotifButton() {
   } else {
     btn.disabled = false;
     btn.textContent = 'Allow';
-    hint.textContent = 'Allow this to get a notification 10 minutes before each timed task.';
+    hint.textContent = 'Allow this to get a notification for each timed task.';
   }
 }
 
@@ -1271,47 +1276,49 @@ function renderView(name) {
 }
 
 // ---------- reminders ----------
-// Each timed task with its reminder on gets a notification 10 minutes before
-// its time. Timers run while Blip is open or in the background; a phone that
-// has fully closed the app needs a push server to wake it.
-const REMIND_BEFORE_MS = 10 * 60 * 1000;
+// Every timed task with its reminder on rings at its time, plus up to three
+// earlier reminders picked in Settings (10 minutes before until changed).
+// While Blip is open, timers here ring them. When push is set up and the
+// person is signed in, the server sends them too, so they arrive with Blip closed.
+const R = window.BlipReminders;
 // Reminders more than this late (the app was closed) are skipped as stale.
 const REMIND_GRACE_MS = 30 * 60 * 1000;
+const SENT_KEY = 'blip.remindSent.v1';
 let reminderTimer = null;
+let remindSent = loadJSON(SENT_KEY, {});
 
-const remindAt = (t) => {
-  const due = dueAt(t);
-  return due === null ? null : due - REMIND_BEFORE_MS;
-};
+const remindOffsets = () => R.extraOffsets(settings.remindOffsets);
+const sentKey = (t, f) => `${t.id}|${dueAt(t)}|${f.min}`;
+const firesOf = (t) => (t.notified ? [] : R.fireTimes(t, settings.remindOffsets, dueAt(t)));
 
-function reminderBody(t, now = Date.now()) {
-  const due = dueAt(t);
-  const mins = Math.round((due - now) / 60000);
+function whenLabel(t) {
   const day = t.date === todayKey() ? 'Today' : dateLabel(t.date);
-  const when = `${day} at ${fmtTime(t.time)}`;
-  if (mins <= 0) return `${when} · now`;
-  return `${when} · in ${mins} min`;
+  return `${day} at ${fmtTime(t.time)}`;
 }
 
-function notify(t) {
-  const body = reminderBody(t);
-  toast(`${t.text} · ${fmtTime(t.time)}`);
+// Push from the server already covers this device, so only show a toast here.
+const pushCovers = () => Boolean(push?.endpoint && profile && profile.mode !== 'guest');
+
+function notify(t, min = 0) {
+  const { title, body } = R.reminderText(t, min, whenLabel(t));
+  toast(`${title} · ${min === 0 ? fmtTime(t.time) : R.leadText(min)}`);
+  if (pushCovers() && t.id !== 'test') return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   const opts = {
     body,
     icon: 'icons/app-icon-192.png',
     badge: 'icons/app-icon-192.png',
-    tag: `blip-${t.id}`,
+    tag: `blip-${t.id}-${min}`,
     renotify: true,
-    requireInteraction: true,
+    requireInteraction: min === 0,
     vibrate: [200, 100, 200],
-    timestamp: dueAt(t),
+    timestamp: dueAt(t) ?? Date.now(),
     data: { taskId: t.id },
   };
-  const fallback = () => { try { new Notification(t.text, opts); } catch { /* page-level notifications unsupported */ } };
+  const fallback = () => { try { new Notification(title, opts); } catch { /* page-level notifications unsupported */ } };
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready
-      .then((reg) => reg.showNotification(t.text, opts))
+      .then((reg) => reg.showNotification(title, opts))
       .catch(fallback);
   } else {
     fallback();
@@ -1321,13 +1328,23 @@ function notify(t) {
 function checkReminders() {
   const now = Date.now();
   let changed = false;
+  let sentChanged = false;
   for (const t of tasks) {
-    if (!t.reminder || t.done || t.notified) continue;
-    const at = remindAt(t);
-    if (at === null || now < at) continue;
-    t.notified = true;
-    changed = true;
-    if (now - dueAt(t) < REMIND_GRACE_MS) notify(t);
+    for (const f of firesOf(t)) {
+      if (now < f.at || remindSent[sentKey(t, f)]) continue;
+      remindSent[sentKey(t, f)] = now;
+      sentChanged = true;
+      // An early heads-up ("in 30 min") is pointless once late; only the
+      // at-the-time reminder still rings when Blip comes back within 30 minutes.
+      const grace = f.min === 0 ? REMIND_GRACE_MS : 2 * 60e3;
+      if (now - f.at < grace) notify(t, f.min);
+      if (f.min === 0) { t.notified = true; changed = true; }
+    }
+  }
+  if (sentChanged) {
+    // Forget marks older than two days so the list stays small.
+    for (const [k, v] of Object.entries(remindSent)) if (now - v > 2 * 864e5) delete remindSent[k];
+    localStorage.setItem(SENT_KEY, JSON.stringify(remindSent));
   }
   if (changed) save();
   scheduleNextReminder();
@@ -1339,15 +1356,153 @@ function scheduleNextReminder() {
   clearTimeout(reminderTimer);
   let next = Infinity;
   for (const t of tasks) {
-    if (!t.reminder || t.done || t.notified) continue;
-    const at = remindAt(t);
-    if (at !== null && at < next) next = at;
+    for (const f of firesOf(t)) {
+      if (!remindSent[sentKey(t, f)] && f.at < next) next = f.at;
+    }
   }
+  queuePushSchedule();
   if (next === Infinity) return;
   // Browsers cap timers near 24.8 days; re-arm at most daily.
   const delay = Math.min(Math.max(next - Date.now(), 0), 24 * 3600e3);
   reminderTimer = setTimeout(checkReminders, delay);
 }
+
+// ---------- background push ----------
+// The device subscribes once; its upcoming reminders are copied to Supabase,
+// and a server job sends each one at its minute. Needs a signed-in account,
+// notifications allowed, and config.js to carry the push key.
+const PUSH_KEY = 'blip.push.v1';
+var push = loadJSON(PUSH_KEY, { endpoint: '' }); // var: save() may run before this line
+const PUSH_HORIZON_MS = 14 * 864e5;
+let pushTimer = null;
+
+const pushReady = () => Boolean(
+  sb && CFG.vapidPublicKey && profile && profile.mode !== 'guest' &&
+  'serviceWorker' in navigator && 'PushManager' in window &&
+  'Notification' in window && Notification.permission === 'granted'
+);
+
+function b64ToBytes(b64) {
+  const pad64 = '='.repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad64).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+async function enablePush() {
+  if (!pushReady()) return false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(CFG.vapidPublicKey) });
+    }
+    const j = sub.toJSON();
+    const { error } = await sb.from('push_subscriptions').upsert({
+      endpoint: j.endpoint,
+      p256dh: j.keys.p256dh,
+      auth: j.keys.auth,
+      user_agent: navigator.userAgent.slice(0, 200),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'endpoint' });
+    if (error) throw error;
+    push.endpoint = j.endpoint;
+    localStorage.setItem(PUSH_KEY, JSON.stringify(push));
+    queuePushSchedule(0);
+    renderNotifButton();
+    return true;
+  } catch (err) {
+    console.warn('[Blip push]', err);
+    return false;
+  }
+}
+
+async function disablePush() {
+  const endpoint = push.endpoint;
+  push.endpoint = '';
+  localStorage.setItem(PUSH_KEY, JSON.stringify(push));
+  try {
+    const reg = await navigator.serviceWorker?.ready;
+    const sub = await reg?.pushManager?.getSubscription();
+    if (sub) await sub.unsubscribe();
+    if (sb && endpoint) await sb.from('push_subscriptions').delete().eq('endpoint', endpoint);
+  } catch { /* already gone */ }
+}
+
+// Waits for edits to settle, then copies upcoming reminders to the server.
+function queuePushSchedule(ms = 2000) {
+  try {
+    if (!push?.endpoint || !pushReady()) return;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(syncPushSchedule, ms);
+  } catch { /* called during startup, before sign-in is set up */ }
+}
+
+async function syncPushSchedule() {
+  if (!push.endpoint || !pushReady() || !navigator.onLine) return;
+  const now = Date.now();
+  const want = new Map();
+  for (const t of tasks) {
+    for (const f of firesOf(t)) {
+      if (f.at <= now || f.at > now + PUSH_HORIZON_MS) continue;
+      const { title, body } = R.reminderText(t, f.min, whenLabel(t));
+      const fireAt = new Date(f.at).toISOString();
+      want.set(`${t.id}|${fireAt}`, { task_id: t.id, fire_at: fireAt, offset_min: f.min, title, body });
+    }
+  }
+  try {
+    const { data: have, error } = await sb.from('reminders')
+      .select('task_id, fire_at').eq('sent', false).gt('fire_at', new Date(now).toISOString());
+    if (error) throw error;
+    const stale = (have || []).filter((r) => !want.has(`${r.task_id}|${new Date(r.fire_at).toISOString()}`));
+    for (const r of stale) {
+      await sb.from('reminders').delete().eq('task_id', r.task_id).eq('fire_at', r.fire_at).eq('sent', false);
+    }
+    if (want.size) {
+      const { error: upErr } = await sb.from('reminders')
+        .upsert([...want.values()], { onConflict: 'user_id,task_id,fire_at' });
+      if (upErr) throw upErr;
+    }
+  } catch (err) {
+    console.warn('[Blip push] schedule', err);
+  }
+}
+
+// ---------- reminder settings ----------
+function renderRemindOptions() {
+  const picked = remindOffsets();
+  const custom = Array.isArray(settings.remindOffsets);
+  $('#remind-opts').innerHTML = [0, ...R.OPTIONS].map((min) => {
+    const on = min === 0 || picked.includes(min);
+    const label = min === 0 ? 'At the time' : R.offsetLabel(min).replace(' before', '');
+    return `<button type="button" class="remind-chip${on ? ' on' : ''}" data-remind="${min}" aria-pressed="${on}"${min === 0 ? ' disabled' : ''}>${label}</button>`;
+  }).join('');
+  const list = [...picked].sort((a, b) => b - a).map((m) => R.offsetLabel(m).replace(' before', ''));
+  const before = list.length > 1 ? `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]} before, and ` : list.length ? `${list[0]} before, and ` : '';
+  $('#remind-hint').textContent = `You’ll get a reminder ${before}at the time.${custom ? '' : ' This is the default.'} Pick up to ${R.MAX_EXTRA} extra.`;
+  $('#remind-reset').hidden = !custom;
+}
+
+function saveRemindOffsets(list) {
+  if (list === null) delete settings.remindOffsets;
+  else settings.remindOffsets = list;
+  saveSettings();
+  renderRemindOptions();
+  scheduleNextReminder();
+  if (sb && profile && profile.mode !== 'guest') {
+    sb.auth.updateUser({ data: { blip_remind: list } }).catch(() => {});
+  }
+}
+
+$('#remind-opts').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-remind]');
+  if (!b || b.disabled) return;
+  const min = Number(b.dataset.remind);
+  const cur = remindOffsets();
+  if (cur.includes(min)) saveRemindOffsets(cur.filter((m) => m !== min));
+  else if (cur.length >= R.MAX_EXTRA) toast(`Up to ${R.MAX_EXTRA} reminders before the time. Remove one first.`);
+  else saveRemindOffsets([...cur, min]);
+});
+$('#remind-reset').addEventListener('click', () => saveRemindOffsets(null));
 
 // ---------- profile: name and work ----------
 // Kept in settings, separate from sign-in, so it works for guests too.
@@ -1554,6 +1709,13 @@ async function fromSession(session) {
     hasPassword: Boolean(meta.has_password),
   });
   // An avatar picked on another device comes with the account.
+  // Reminder choices follow the account too.
+  if (Array.isArray(meta.blip_remind) && !Array.isArray(settings.remindOffsets)) {
+    settings.remindOffsets = R.extraOffsets(meta.blip_remind);
+    saveSettings();
+  }
+  // Signed in with notifications allowed: make sure this device gets pushes.
+  setTimeout(() => { if (pushReady()) enablePush(); }, 1500);
   if (meta.blip_avatar && AVATARS[meta.blip_avatar] && !settings.avatar) {
     settings.avatar = meta.blip_avatar;
     saveSettings();
@@ -1829,6 +1991,7 @@ async function askNotifications() {
     return;
   }
   await Notification.requestPermission();
+  if (Notification.permission === 'granted') enablePush();
   renderPerms();
   renderNotifButton();
 }
@@ -2024,6 +2187,7 @@ function initAccountAndInstall() {
       return;
     }
     await stopSync();
+    await disablePush();
     if (sb) await sb.auth.signOut();
     setProfile(null);
     // Name and work belonged to that account; the next person sets their own.
@@ -2167,8 +2331,8 @@ function startSync(userId) {
         // A task arriving from another device that is already past its
         // reminder time shouldn't ring here too.
         alreadyDue: (t) => {
-          const at = remindAt(t);
-          return at !== null && at <= Date.now();
+          const due = dueAt(t);
+          return due !== null && due <= Date.now();
         },
         // Re-render, but not over a form the user is editing.
         remoteChanged: () => {
@@ -2672,6 +2836,7 @@ $('#save-key').addEventListener('click', () => {
 $('#reset-device').addEventListener('click', async () => {
   if (!confirm('Reset Blip on this device? This signs you out and removes tasks, notes, your name and setup from this device. Anything synced to your account stays there.')) return;
   try { await stopSync(); } catch {}
+  try { await disablePush(); } catch {}
   try { if (sb) await sb.auth.signOut(); } catch {}
   wipeDevice();
   localStorage.setItem(RESET_FLAG, '1');
@@ -2688,13 +2853,14 @@ $('#clear-data').addEventListener('click', () => {
 
 $('#notif-btn').addEventListener('click', askNotifications);
 $('#notif-test').addEventListener('click', () => {
-  const at = new Date(Date.now() + REMIND_BEFORE_MS);
+  const at = new Date(Date.now() + 10 * 60e3);
   notify({
     id: 'test',
     text: 'Test reminder',
+    notes: 'This is how your task notes will show.',
     date: todayKey(at),
     time: `${pad(at.getHours())}:${pad(at.getMinutes())}`,
-  });
+  }, 10);
 });
 
 // Catch up as soon as the app comes back to the foreground.
