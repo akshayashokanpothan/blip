@@ -288,6 +288,8 @@ main {
 .mic-hero .ring { position: absolute; inset: -14px; border-radius: 999px; border: 1px solid var(--soft); pointer-events: none; }
 .mic-hero .ring.r2 { inset: -30px; border-color: color-mix(in srgb, var(--soft) 60%, transparent); }
 .mic-label { margin: 46px 0 0; font-size: 15px; color: var(--muted); }
+.kbd-hint { display: none; }
+@media (min-width: 1024px) and (pointer: fine) { .kbd-hint { display: inline; } }
 
 /* ---------- desktop quick add (hidden on phones) ---------- */
 .quick-add { align-items: center; gap: 10px; margin: 0 0 20px; padding: 8px 8px 8px 18px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--shadow); }

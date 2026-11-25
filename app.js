@@ -2125,7 +2125,19 @@ function initDevice() {
     if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
     if (!mqDesktop.matches) return;
 
-    if (e.key === 'n' || e.key === 'N') {
+    if (e.code === 'Space' || e.key === ' ') {
+      // Space starts speaking, and pressing it again while listening stops.
+      // Left alone while a dialog, sheet, or the review screen is open.
+      if (e.repeat) { e.preventDefault(); return; }
+      const listening = !$('#capture').hidden && !$('#cap-listen').hidden;
+      if (listening) { e.preventDefault(); $('#cap-stop').click(); return; }
+      const blocked = !$('#capture').hidden || !$('#tour').hidden
+        || document.querySelector('.onboard:not([hidden]), .sheet.open');
+      if (blocked) return;
+      e.preventDefault();
+      if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+      openCapture('voice');
+    } else if (e.key === 'n' || e.key === 'N') {
       e.preventDefault();
       showView('home');
       $('#quick-input').focus();
