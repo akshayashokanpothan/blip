@@ -982,6 +982,7 @@ $('#cap-add').addEventListener('click', () => {
   showView('tasks');
   toast(parts.join(' · '));
   haptic();
+  if (items.length) playAddedSound();
 });
 
 $('#cap-cancel').addEventListener('click', closeCapture);
@@ -1508,6 +1509,31 @@ function playChime(name = settings.chime || 'blip') {
   } catch { /* sound unavailable */ }
 }
 
+// A quick, bright "pop-ding" when tasks are added from the review screen.
+const ADDED_SOUND = { notes: [[587, 0, 0.07], [880, 0.065, 0.1], [1175, 0.14, 0.22]], wave: 'sine', gain: 0.16 };
+function playAddedSound() {
+  if (settings.addSound === false) return;
+  CHIMES._added = ADDED_SOUND;
+  playChime('_added');
+  delete CHIMES._added;
+}
+
+function renderAddSoundOptions() {
+  const on = settings.addSound !== false;
+  $('#addsound-opts').innerHTML = [['on', 'On'], ['off', 'Off']].map(([k, l]) => {
+    const sel = (k === 'on') === on;
+    return `<button type="button" class="remind-chip${sel ? ' on' : ''}" data-addsound="${k}" aria-pressed="${sel}">${l}</button>`;
+  }).join('');
+}
+$('#addsound-opts').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-addsound]');
+  if (!b) return;
+  settings.addSound = b.dataset.addsound === 'on';
+  saveSettings();
+  renderAddSoundOptions();
+  playAddedSound();
+});
+
 function buzz() {
   try { navigator.vibrate?.(BUZZ); } catch { /* not supported */ }
 }
@@ -1530,6 +1556,7 @@ $('#chime-opts').addEventListener('click', (e) => {
 // ---------- reminder settings ----------
 function renderRemindOptions() {
   renderChimeOptions();
+  renderAddSoundOptions();
   const picked = remindOffsets();
   const custom = Array.isArray(settings.remindOffsets);
   $('#remind-opts').innerHTML = [0, ...R.OPTIONS].map((min) => {
