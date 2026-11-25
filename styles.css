@@ -228,6 +228,11 @@ main {
 .pill-btn.sm { height: 30px; padding: 0 12px; font-size: 13px; }
 .x-del { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 999px; color: var(--muted); }
 .x-del:hover { color: var(--red); }
+/* Unfinished tasks: "Move to today" sits on its own line under the title,
+   so a long title keeps the full width on a phone. */
+.task.carry { flex-wrap: wrap; row-gap: 10px; }
+.task.carry .task-body { flex: 1 1 calc(100% - 100px); }
+.task.carry [data-act="move"] { order: 3; margin-left: 38px; }
 [data-pointer="mouse"] .x-del { opacity: 0; transition: opacity var(--t-fast) var(--ease); }
 [data-pointer="mouse"] .task:hover .x-del,
 [data-pointer="mouse"] .x-del:focus-visible { opacity: 1; }
@@ -301,8 +306,8 @@ main {
 .btn.google { background: var(--card); border: 1px solid var(--border); }
 .btn:disabled { opacity: 0.5; cursor: default; }
 .link { color: var(--accent); font-weight: var(--sub-weight); font-size: 15px; padding: 10px; }
-.pill-btn { height: 36px; padding: 0 16px; border-radius: 999px; background: var(--pill); color: var(--fab); font-weight: var(--sub-weight); font-size: 14px; }
-.pill-btn:disabled { color: var(--muted); }
+.pill-btn { flex: none; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 16px; border-radius: 999px; background: var(--pill); color: var(--fab); font-weight: var(--sub-weight); font-size: 14px; }
+.pill-btn:disabled { color: var(--muted); background: transparent; padding: 0 2px; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > span { font-size: 13px; color: var(--muted); font-weight: 500; }
@@ -571,7 +576,9 @@ main {
 .perm-row .grow { flex: 1; min-width: 0; }
 .perm-row strong { display: block; font-size: 16px; font-weight: var(--sub-weight); }
 .perm-row span.why { font-size: 13px; color: var(--muted); }
-.perm-state { font-size: 13px; color: var(--muted); }
+.perm-state { flex: none; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.perm-row.blocked .perm-state { color: var(--red); font-weight: var(--sub-weight); }
+.perm-row > .pill-btn { flex: none; }
 .perm-row.ok .perm-state { color: var(--accent); font-weight: var(--sub-weight); }
 .perm-row .check-ic { width: 24px; height: 24px; border-radius: 999px; background: var(--accent); color: var(--fab-ink); display: grid; place-items: center; }
 .perm-row .check-ic svg.i { width: 13px; height: 13px; stroke-width: 3; }
@@ -679,3 +686,15 @@ main {
 .ps-role.on { background: var(--fab); border-color: var(--fab); color: var(--fab-ink); font-weight: var(--sub-weight); }
 .dots .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--border); transition: width var(--t-fast) var(--ease), background var(--t-fast) var(--ease); }
 .dots .dot.on { width: 20px; background: var(--fab); }
+
+/* Desktop: onboarding and profile setup open as a centred dialog over a dimmed page. */
+@media (min-width: 1024px) {
+  .onboard {
+    inset: auto; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(480px, calc(100vw - 48px)); max-height: min(720px, calc(100vh - 48px)); min-height: 560px;
+    padding: 28px 32px; border-radius: 28px; border: 1px solid var(--line);
+    box-shadow: 0 0 0 100vmax rgba(10, 14, 12, 0.5), 0 24px 60px rgba(0, 0, 0, 0.3);
+  }
+  .ob-panel h1 { font-size: 30px; }
+  .ob-art { height: 200px; }
+}

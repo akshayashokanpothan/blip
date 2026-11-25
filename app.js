@@ -919,7 +919,7 @@ function taskHTML(t, { carry = false } = {}) {
   const high = `<span class="tag-prio p-${t.priority}"><span class="dot"></span>${PRIORITY_LABEL[t.priority]}</span>`;
   const repeat = t.repeat && t.repeat !== 'none' ? '<span>· Repeats</span>' : '';
   return `
-    <li class="task${t.done ? ' done' : ''}" data-id="${t.id}">
+    <li class="task${t.done ? ' done' : ''}${carry ? ' carry' : ''}" data-id="${t.id}">
       <button class="check" type="button" data-act="toggle" aria-label="${t.done ? 'Mark not done' : 'Mark done'}">${ICON.check}</button>
       <button class="task-body" type="button" data-act="open" aria-label="Open ${esc(t.text)}">
         <span class="task-title">${esc(t.text)}</span>
@@ -1414,33 +1414,35 @@ async function permState(name) {
   }
 }
 
-function setPermRow(id, state, label) {
+// Each permission row shows one thing on the right: an Allow button while
+// Blip can still ask, or a short status once it can't. Longer advice goes
+// under the title, so the row never crowds on a phone.
+function setPermRow(id, state, why) {
   const row = $(`#${id}`);
   const btn = row.querySelector('[data-perm]');
+  const sub = row.querySelector('.why');
+  if (sub && !sub.dataset.base) sub.dataset.base = sub.textContent;
   row.classList.toggle('ok', state === 'granted');
-  if (btn) {
-    btn.hidden = state === 'granted';
-  }
+  row.classList.toggle('blocked', state === 'denied' || state === 'unsupported');
+  if (btn) btn.hidden = state !== 'prompt';
   let st = row.querySelector('.perm-state');
   if (!st) {
     st = document.createElement('span');
     st.className = 'perm-state';
     row.append(st);
   }
-  if (state === 'granted') {
-    st.textContent = 'Allowed';
-    row.querySelector('.check-ic')?.remove();
-  } else {
-    st.textContent = label;
-  }
+  const status = { granted: 'Allowed', denied: 'Blocked', unsupported: 'Not available' }[state] || '';
+  st.textContent = status;
+  st.hidden = !status;
+  if (sub) sub.textContent = state === 'denied' || state === 'unsupported' ? why : sub.dataset.base;
 }
 
 async function renderPerms() {
   const mic = await permState('microphone');
-  setPermRow('perm-mic', mic, mic === 'denied' ? 'Blocked in browser settings' : 'Not allowed yet');
+  setPermRow('perm-mic', mic === 'granted' || mic === 'denied' ? mic : 'prompt', 'Turn it on in your browser’s site settings');
   const notif = 'Notification' in window ? Notification.permission : 'unsupported';
-  setPermRow('perm-notif', notif === 'granted' ? 'granted' : 'prompt',
-    notif === 'denied' ? 'Blocked in browser settings' : notif === 'unsupported' ? 'Not supported here' : 'Not allowed yet');
+  setPermRow('perm-notif', notif === 'default' ? 'prompt' : notif,
+    notif === 'unsupported' ? 'This browser can’t show notifications' : 'Turn them on in your browser’s site settings');
 }
 
 async function askMic() {
