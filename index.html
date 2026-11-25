@@ -488,6 +488,10 @@
       <div class="settings-group">
         <p id="account-line" class="card-copy" style="padding:14px 16px 0"></p>
         <p id="sync-line" class="card-copy muted" style="padding:4px 16px 0;font-size:13px" hidden></p>
+        <button id="pw-row" class="row-link" type="button" hidden>
+          <span id="pw-row-label">Set a password</span>
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
         <button id="signout" class="row-link" type="button">Sign in or create account</button>
       </div>
 
@@ -612,6 +616,34 @@
     </div>
   </section>
 
+  <!-- Password: set or change from Settings, or after a reset email -->
+  <section id="pw-setup" class="onboard" hidden aria-label="Password">
+    <div class="ps-top">
+      <button id="pw-back" class="icon-btn" type="button" aria-label="Back">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <span></span><span></span>
+    </div>
+    <form id="pw-form" class="ob-panel" autocomplete="on">
+      <h1 id="pw-title">Set a password</h1>
+      <p id="pw-copy">Use it with your email to sign in to Blip on any device, without waiting for a link.</p>
+      <input type="email" id="pw-username" autocomplete="username" hidden>
+      <div class="pw-wrap">
+        <input id="pw-new" class="ps-input" type="password" autocomplete="new-password" minlength="8" placeholder="New password" required>
+      </div>
+      <input id="pw-confirm" class="ps-input" type="password" autocomplete="new-password" minlength="8" placeholder="Type it again" required>
+      <ul id="pw-rules" class="pw-rules">
+        <li data-rule="len">At least 8 characters</li>
+        <li data-rule="mix">A letter and a number</li>
+        <li data-rule="match">Both match</li>
+      </ul>
+      <p id="pw-msg" class="auth-msg" role="status" aria-live="polite" style="text-align:left"></p>
+      <div class="ob-foot" style="margin-top:auto">
+        <button id="pw-save" class="btn primary" type="submit" disabled>Save password</button>
+      </div>
+    </form>
+  </section>
+
   <!-- Onboarding: welcome, permissions, then sign-in -->
   <section id="onboarding" class="onboard" hidden aria-label="Welcome to Blip">
     <div id="ob-welcome" class="ob-panel">
@@ -667,7 +699,15 @@
         <p class="or">or</p>
         <form id="email-form" class="auth-stack">
           <input id="email" type="email" placeholder="you@example.com" autocomplete="email" required>
-          <button class="btn primary" type="submit">Continue with email</button>
+          <div class="pw-wrap">
+            <input id="password" type="password" placeholder="Password (optional)" autocomplete="current-password">
+            <button id="pw-show" class="pw-show" type="button" aria-label="Show password" aria-pressed="false">Show</button>
+          </div>
+          <button id="email-submit" class="btn primary" type="submit">Email me a sign-in link</button>
+          <div class="auth-links">
+            <button id="auth-mode" class="link" type="button">New here? Create an account</button>
+            <button id="forgot-pw" class="link" type="button">Forgot password?</button>
+          </div>
         </form>
         <p id="auth-msg" class="auth-msg" role="status" aria-live="polite"></p>
       </div>

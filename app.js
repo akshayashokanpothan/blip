@@ -1355,6 +1355,9 @@ function renderProfile() {
   $('#signout').textContent = profile && profile.mode !== 'guest'
     ? 'Sign out'
     : 'Sign in or create account';
+  // Password settings only make sense for a real Supabase account.
+  $('#pw-row').hidden = !(sb && profile && profile.mode !== 'guest');
+  $('#pw-row-label').textContent = profile?.hasPassword ? 'Change password' : 'Set a password';
 }
 
 const authMsg = (msg) => { $('#auth-msg').textContent = msg; };
@@ -1368,9 +1371,58 @@ async function fromSession(session) {
     email: u.email || '',
     name: meta.full_name || meta.name || (u.email || 'Friend').split('@')[0],
     avatar: meta.avatar_url || null,
+    hasPassword: Boolean(meta.has_password),
   });
   finishOnboarding();
   startSync(u.id);
+}
+
+// Email sign-in has three paths on one form:
+//   no password       -> magic link (as before)
+//   password, sign in -> signInWithPassword
+//   password, create  -> signUp (Supabase emails a confirmation link)
+let authMode = 'signin';
+
+function renderAuthForm() {
+  const pw = $('#password').value;
+  const create = authMode === 'create';
+  $('#password').placeholder = create ? 'Choose a password' : 'Password (optional)';
+  $('#password').autocomplete = create ? 'new-password' : 'current-password';
+  $('#email-submit').textContent = create ? 'Create account' : pw ? 'Sign in' : 'Email me a sign-in link';
+  $('#auth-mode').textContent = create ? 'Have an account? Sign in' : 'New here? Create an account';
+  $('#forgot-pw').hidden = create;
+}
+
+function friendlyAuthError(err) {
+  const m = (err?.message || '').toLowerCase();
+  if (m.includes('invalid login')) return 'Wrong email or password. If you’ve only used email links so far, sign in with a link, then set a password in Settings.';
+  if (m.includes('email not confirmed')) return 'Confirm your email first: open the link we sent you.';
+  if (m.includes('already registered')) return 'That email already has an account. Sign in instead.';
+  if (m.includes('rate limit')) return 'Too many emails just now. Wait a few minutes and try again.';
+  if (m.includes('password should') || m.includes('weak')) return 'That password is too weak. Use at least 8 characters with a letter and a number.';
+  return err?.message || 'Something went wrong. Try again.';
+}
+
+async function signInWithPassword(email, password) {
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  authMsg('');
+}
+
+async function createAccount(email, password) {
+  const { data, error } = await sb.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: redirectUrl(), data: { has_password: true } },
+  });
+  if (error) throw error;
+  if (!data.session) authMsg('Check your inbox to confirm your email, then sign in.');
+}
+
+async function sendPasswordReset(email) {
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl() });
+  if (error) throw error;
+  authMsg('Check your inbox for a link to reset your password.');
 }
 
 async function signInWithEmail(email) {
@@ -1595,15 +1647,53 @@ function initAccountAndInstall() {
   $('#google-btn').addEventListener('click', () => {
     signInWithGoogle().catch((err) => authMsg(err.message));
   });
-  $('#email-form').addEventListener('submit', (e) => {
+  $('#email-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const v = $('#email').value.trim();
+    const pw = $('#password').value;
     if (!/^\S+@\S+\.\S+$/.test(v)) {
       authMsg('Enter a valid email address.');
       return;
     }
-    signInWithEmail(v).catch((err) => authMsg(err.message));
+    if (authMode === 'create' && pw.length < 8) {
+      authMsg('Choose a password of at least 8 characters.');
+      return;
+    }
+    const btn = $('#email-submit');
+    btn.disabled = true;
+    try {
+      if (!sb || (!pw && authMode !== 'create')) await signInWithEmail(v);
+      else if (authMode === 'create') await createAccount(v, pw);
+      else await signInWithPassword(v, pw);
+    } catch (err) {
+      authMsg(friendlyAuthError(err));
+    } finally {
+      btn.disabled = false;
+    }
   });
+  $('#password').addEventListener('input', renderAuthForm);
+  $('#pw-show').addEventListener('click', () => {
+    const show = $('#password').type === 'password';
+    $('#password').type = show ? 'text' : 'password';
+    $('#pw-show').textContent = show ? 'Hide' : 'Show';
+    $('#pw-show').setAttribute('aria-pressed', String(show));
+  });
+  $('#auth-mode').addEventListener('click', () => {
+    authMode = authMode === 'create' ? 'signin' : 'create';
+    authMsg('');
+    renderAuthForm();
+  });
+  $('#forgot-pw').addEventListener('click', () => {
+    const v = $('#email').value.trim();
+    if (!/^\S+@\S+\.\S+$/.test(v)) {
+      authMsg('Enter your email above, then tap “Forgot password?” again.');
+      $('#email').focus();
+      return;
+    }
+    if (!sb) { authMsg('Password reset needs Supabase set up in config.js.'); return; }
+    sendPasswordReset(v).catch((err) => authMsg(friendlyAuthError(err)));
+  });
+  renderAuthForm();
   $('#skip-auth').addEventListener('click', () => {
     setProfile({ mode: 'guest', name: 'Guest', email: '', avatar: null });
     finishOnboarding();
@@ -1628,14 +1718,71 @@ async function initAuth() {
     sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
     const { data } = await sb.auth.getSession();
     if (data.session) await fromSession(data.session);
-    sb.auth.onAuthStateChange((_event, session) => {
+    sb.auth.onAuthStateChange((event, session) => {
       if (session) fromSession(session);
+      // Opened from a "reset password" email: ask for the new password now.
+      if (event === 'PASSWORD_RECOVERY') openPasswordSetup('reset');
     });
   }
   renderProfile();
   authMsg(sb ? '' : 'Preview mode: connect Supabase in config.js to verify email and enable Google.');
   if (!profile) showOnboarding('welcome');
 }
+
+// ---------- password (v2) ----------
+// One password per account, so it works on every device. Set it here after
+// signing in with a link, change it later, or set a new one from a reset email.
+let pwMode = 'set';
+
+function openPasswordSetup(mode = profile?.hasPassword ? 'change' : 'set') {
+  pwMode = mode;
+  $('#pw-title').textContent = { set: 'Set a password', change: 'Change password', reset: 'Set a new password' }[mode];
+  $('#pw-copy').textContent = mode === 'reset'
+    ? 'Choose a new password for your Blip account. You’ll use it on all your devices.'
+    : 'Use it with your email to sign in to Blip on any device, without waiting for a link.';
+  $('#pw-username').value = profile?.email || '';
+  $('#pw-new').value = '';
+  $('#pw-confirm').value = '';
+  $('#pw-msg').textContent = '';
+  checkPasswordRules();
+  $('#pw-setup').hidden = false;
+  setTimeout(() => $('#pw-new').focus(), 200);
+}
+
+function checkPasswordRules() {
+  const a = $('#pw-new').value;
+  const b = $('#pw-confirm').value;
+  const ok = { len: a.length >= 8, mix: /[a-z]/i.test(a) && /\d/.test(a), match: Boolean(a) && a === b };
+  for (const li of $$('#pw-rules li')) li.classList.toggle('ok', ok[li.dataset.rule]);
+  $('#pw-save').disabled = !(ok.len && ok.mix && ok.match);
+  return ok;
+}
+
+$('#pw-row').addEventListener('click', () => openPasswordSetup());
+$('#pw-back').addEventListener('click', () => { $('#pw-setup').hidden = true; });
+$('#pw-new').addEventListener('input', checkPasswordRules);
+$('#pw-confirm').addEventListener('input', checkPasswordRules);
+$('#pw-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!sb) return;
+  const ok = checkPasswordRules();
+  if (!(ok.len && ok.mix && ok.match)) return;
+  $('#pw-save').disabled = true;
+  $('#pw-msg').textContent = 'Saving…';
+  const { error } = await sb.auth.updateUser({ password: $('#pw-new').value, data: { has_password: true } });
+  if (error) {
+    const m = error.message.toLowerCase();
+    $('#pw-msg').textContent = m.includes('reauthentication') || m.includes('recent')
+      ? 'For safety, sign out and sign back in with an email link, then set the password again.'
+      : m.includes('same') ? 'That’s your current password. Choose a different one.'
+      : friendlyAuthError(error);
+    $('#pw-save').disabled = false;
+    return;
+  }
+  if (profile) setProfile({ ...profile, hasPassword: true });
+  $('#pw-setup').hidden = true;
+  toast(pwMode === 'change' ? 'Password changed' : 'Password saved. Use it to sign in on any device.');
+});
 
 // ---------- sync (v2) ----------
 // Runs only when signed in with Supabase. Guests and preview mode behave as v1.

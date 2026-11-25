@@ -698,3 +698,17 @@ main {
   .ob-panel h1 { font-size: 30px; }
   .ob-art { height: 200px; }
 }
+
+/* ---------- password (v2) ---------- */
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 72px; }
+.pw-show { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); height: 36px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: var(--sub-weight); color: var(--muted); }
+.pw-show:hover { color: var(--ink); background: var(--soft); }
+.auth-links { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.auth-links .link { font-size: 14px; padding: 4px 0; }
+.pw-rules { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--muted); }
+.pw-rules li { display: flex; align-items: center; gap: 8px; }
+.pw-rules li::before { content: ""; width: 16px; height: 16px; border-radius: 999px; border: 1.5px solid var(--border); flex: none; }
+.pw-rules li.ok { color: var(--ink); }
+.pw-rules li.ok::before { border-color: var(--p-low-dot); background: var(--p-low-dot) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 10px no-repeat; }
+.btn:disabled { opacity: 0.45; cursor: default; }
