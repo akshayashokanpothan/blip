@@ -211,16 +211,29 @@ function extractWhen(s, now = new Date()) {
     text = text.replace(rg[0], ' ');
   }
 
-  const tm = !time && (text.match(/\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?![a-z])/i)
-    || text.match(/\bat\s+(\d{1,2})(?::(\d{2}))?()\b/i));
+  // Single times: "4 pm", "4:30pm", "at 4", "4 o'clock", "16:00", "four o'clock".
+  const NUM_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
+  text = text.replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?=\s*(?:o\s*['’]?\s*clock|a\.?m\.?|p\.?m\.?)(?![a-z]))/gi,
+    (w) => String(NUM_WORDS[w.toLowerCase()]));
+  const dayPart = (text.match(/\b(morning|afternoon|evening|night|tonight)\b/i) || [])[1]?.toLowerCase() || '';
+  const tm = !time && (
+    text.match(/\b(?:at\s+|by\s+|for\s+|@\s*)?(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?![a-z])/i)
+    || text.match(/\b(?:at\s+|by\s+|for\s+|@\s*)?(\d{1,2})(?::(\d{2}))?\s*o\s*['’]?\s*clock\b()/i)
+    || text.match(/\b(?:at\s+|by\s+|for\s+|@\s*)?([01]?\d|2[0-3]):([0-5]\d)\b()/i)
+    || text.match(/\b(?:at|by|@)\s*(\d{1,2})(?::(\d{2}))?()\b/i));
   if (tm) {
     let h = Number(tm[1]);
     const min = Number(tm[2] || 0);
     const mer = (tm[3] || '').toLowerCase().replace(/\./g, '');
-    if (h <= 12 && min < 60) {
+    if (h <= 23 && min < 60) {
       if (mer.startsWith('p') && h < 12) h += 12;
       else if (mer.startsWith('a') && h === 12) h = 0;
-      else if (!mer && h >= 1 && h <= 6) h += 12; // "at 6" means 6 pm
+      else if (!mer && h >= 1 && h <= 12) {
+        // No am/pm: use the part of day if said, else 1-6 means afternoon or evening.
+        if (dayPart === 'morning') h = h === 12 ? 0 : h;
+        else if (dayPart) h = h < 12 ? h + 12 : h;
+        else if (h <= 6) h += 12;
+      }
       time = `${pad(h)}:${pad(min)}`;
     }
     text = text.replace(tm[0], ' ');
@@ -264,7 +277,8 @@ function parseLocal(input) {
     const priority = HIGH.test(s) ? 'high' : LOW.test(s) ? 'low' : 'medium';
     const withoutPriority = s.replace(HIGH, ' ').replace(LOW, ' ');
     const when = extractWhen(withoutPriority);
-    let text = when.text.replace(/\s+/g, ' ').replace(/^\s*(on|by|at|in)\s+/i, '').trim();
+    let text = when.text.replace(/\s+/g, ' ').replace(/^\s*(on|by|at|in)\s+/i, '')
+      .replace(/\s+(on|by|at|in|for)\s*$/i, '').trim();
     for (let i = 0; i < 2; i++) text = text.replace(FILLER, '');
     text = text.replace(/^./, (c) => c.toUpperCase()).trim();
     if (text) {
@@ -1540,6 +1554,7 @@ function initDevice() {
 
   let timer;
   window.addEventListener('resize', () => {
+    requestAnimationFrame(fitHome);
     clearTimeout(timer);
     timer = setTimeout(() => {
       applyDevice();
@@ -1643,6 +1658,27 @@ const VIEW_TAB = {
   integrations: 'integrations', settings: 'settings',
 };
 
+// On phones the home screen should fit without scrolling, with the text box
+// sitting just above the floating tab bar. Screen heights vary (gesture bars,
+// installed vs browser), so measure instead of guessing.
+function fitHome() {
+  const main = $('#view-home .home-main');
+  const bar = $('.tabbar');
+  if (!main) return;
+  const page = document.querySelector('main');
+  if (!bar || getComputedStyle(bar).display === 'none' || ui.view !== 'home') {
+    main.style.minHeight = '';
+    page.style.paddingBottom = '';
+    return;
+  }
+  const top = main.getBoundingClientRect().top + window.scrollY;
+  const barTop = bar.getBoundingClientRect().top;
+  // Fill down to 20px above the bar, and leave exactly the bar's space below,
+  // so the page fits the screen. Taller content still scrolls clear of the bar.
+  main.style.minHeight = `${Math.max(0, Math.floor(barTop - top - 20))}px`;
+  page.style.paddingBottom = `${Math.ceil(window.innerHeight - barTop + 20)}px`;
+}
+
 function showView(name) {
   ui.view = name;
   root.dataset.view = name;
@@ -1654,6 +1690,7 @@ function showView(name) {
   if (name !== 'home') closeMenus();
   renderView(name);
   window.scrollTo({ top: 0 });
+  if (name === 'home') requestAnimationFrame(fitHome);
 }
 
 function openSearch(rowSel, inputSel) {
@@ -1982,6 +2019,8 @@ setInterval(() => {
   if (!typing && !editing) render();
 }, 30_000);
 
+window.addEventListener('load', fitHome);
+document.fonts?.ready.then(fitHome);
 setTheme(settings.theme);
 runSplash();
 showView('home');
