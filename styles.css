@@ -729,6 +729,172 @@ main {
 [data-theme="claude"] .brand .logo-dark { display: block; }
 
 .avatar img { width: 56px; height: auto; display: block; }
+.avatar img.photo { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; }
+
+.card-hint { margin: 0; padding: 6px 20px 0; font-size: 15px; color: var(--muted); }
+
+/* ---------- onboarding ---------- */
+.onboard {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top) + 24px) 24px calc(env(safe-area-inset-bottom) + 24px);
+  background: var(--bg);
+  overflow-y: auto;
+}
+
+.ob-body {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.ob-mark { width: 120px; height: 120px; display: block; margin: 0 auto; }
+.slides { width: 100%; }
+.slide { display: none; }
+.slide.on { display: block; }
+
+.ob-body h1,
+.slide h1 {
+  margin: 24px 0 10px;
+  font-family: var(--display);
+  font-size: 34px;
+  font-weight: var(--brand-weight);
+  letter-spacing: -0.5px;
+  color: var(--ink);
+}
+.slide p,
+.ob-body > p {
+  margin: 0 auto;
+  max-width: 320px;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.dots { display: flex; gap: 8px; justify-content: center; margin: 28px 0 24px; }
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border);
+  transition: width 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.2s;
+}
+.dot.on { width: 22px; background: var(--accent); }
+
+.btn {
+  width: 100%;
+  padding: 16px 20px;
+  border: 0;
+  border-radius: var(--r-field);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn.primary { background: var(--fab); color: var(--fab-ink); }
+.btn.google { background: var(--card); color: var(--ink); border: 1px solid var(--border); }
+
+.link {
+  margin-top: 14px;
+  padding: 8px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 16px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.auth-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 28px;
+}
+.or { margin: 0; font-size: 14px; color: var(--muted); text-align: center; }
+#email {
+  width: 100%;
+  padding: 16px;
+  font: inherit;
+  font-size: 17px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-field);
+  outline: none;
+}
+#email:focus { border-color: var(--accent); }
+.auth-msg { min-height: 20px; margin: 0; font-size: 14px; color: var(--muted); text-align: center; }
+
+/* ---------- install assistant ---------- */
+.install-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 8px 0 4px;
+}
+.install-mark { width: 64px; height: 64px; }
+.install-body h2 {
+  margin: 14px 0 6px;
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: var(--brand-weight);
+  color: var(--ink);
+}
+.install-body > p {
+  margin: 0;
+  max-width: 340px;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.steps {
+  width: 100%;
+  max-width: 340px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  counter-reset: step;
+}
+.steps li {
+  counter-increment: step;
+  position: relative;
+  padding: 10px 0 10px 40px;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--pill);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+.install-actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 18px;
+}
 
 /* Blip Green uses hairline outlines like the kit's cards */
 [data-theme="green"] .search,

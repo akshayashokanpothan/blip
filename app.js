@@ -351,6 +351,251 @@ function render() {
   renderDone();
 }
 
+// ---------- account and onboarding ----------
+// Real sign-in runs on Supabase (email link + Google) when config.js has keys.
+// Without keys, the app runs in preview mode: email sign-in is not verified.
+const PROFILE_KEY = 'blip.profile.v1';
+const INSTALL_DISMISS_KEY = 'blip.installDismissed.v1';
+const CFG = window.BLIP_CONFIG || {};
+let profile = loadJSON(PROFILE_KEY, null);
+let sb = null;
+let onboardSlide = 0;
+
+function setProfile(p) {
+  profile = p;
+  if (p) localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+  else localStorage.removeItem(PROFILE_KEY);
+  renderProfile();
+}
+
+function renderProfile() {
+  $('#avatar').innerHTML = profile?.avatar
+    ? `<img class="photo" src="${esc(profile.avatar)}" alt="">`
+    : '<img src="assets/logo/symbol-color.svg" alt="">';
+  $('#profile-name').textContent = profile?.name || 'Blip';
+  $('#profile-sub').textContent = profile?.email || 'Say it. Get it done.';
+  $('#account-line').textContent = !profile
+    ? 'Not signed in'
+    : profile.mode === 'guest'
+      ? 'Guest. Tasks are saved on this device.'
+      : `Signed in as ${profile.email || profile.name}`;
+  $('#signout').textContent = profile && profile.mode !== 'guest'
+    ? 'Sign out'
+    : 'Sign in or create account';
+}
+
+const authMsg = (msg) => { $('#auth-msg').textContent = msg; };
+const redirectUrl = () => location.origin + location.pathname;
+
+async function fromSession(session) {
+  const u = session.user;
+  const meta = u.user_metadata || {};
+  setProfile({
+    mode: u.app_metadata?.provider === 'google' ? 'google' : 'email',
+    email: u.email || '',
+    name: meta.full_name || meta.name || (u.email || 'Friend').split('@')[0],
+    avatar: meta.avatar_url || null,
+  });
+  finishOnboarding();
+}
+
+async function signInWithEmail(email) {
+  if (!sb) {
+    setProfile({ mode: 'email', email, name: email.split('@')[0], avatar: null });
+    finishOnboarding();
+    return;
+  }
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: redirectUrl() },
+  });
+  if (error) throw error;
+  authMsg('Check your inbox for a sign-in link.');
+}
+
+async function signInWithGoogle() {
+  if (!sb) {
+    authMsg('Google sign-in needs Supabase set up in config.js. Use email or skip for now.');
+    return;
+  }
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: redirectUrl() },
+  });
+  if (error) throw error;
+}
+
+function showOnboarding(authOnly = false) {
+  $('#onboarding').hidden = false;
+  $('#ob-intro').hidden = authOnly;
+  $('#ob-auth').hidden = !authOnly;
+  showSlide(0);
+}
+
+function showSlide(i) {
+  onboardSlide = i;
+  $$('.slide').forEach((s, idx) => s.classList.toggle('on', idx === i));
+  $$('.dot').forEach((d, idx) => d.classList.toggle('on', idx === i));
+  $('#ob-next').textContent = i === 2 ? 'Get started' : 'Next';
+}
+
+function showAuthStep() {
+  $('#ob-intro').hidden = true;
+  $('#ob-auth').hidden = false;
+}
+
+function finishOnboarding() {
+  if ($('#onboarding').hidden) return;
+  $('#onboarding').hidden = true;
+  renderProfile();
+  setTimeout(maybeShowInstall, 700);
+}
+
+// ---------- install assistant ----------
+let deferredPrompt = null;
+const isStandalone = () =>
+  window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () =>
+  /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isIOSSafari = () =>
+  isIOS() && /safari/i.test(navigator.userAgent) && !/crios|fxios|edgios/i.test(navigator.userAgent);
+const installSupported = () => !isStandalone() && (deferredPrompt !== null || isIOS());
+
+function recentlyDismissed() {
+  const t = Number(localStorage.getItem(INSTALL_DISMISS_KEY) || 0);
+  return Date.now() - t < 7 * 24 * 3600 * 1000;
+}
+
+function refreshInstallEntries() {
+  const show = installSupported();
+  $('#drawer-install').hidden = !show;
+  $('#install-settings').hidden = !show;
+}
+
+function openInstall() {
+  if (!installSupported()) {
+    toast('Blip is already installed, or this browser can’t install it.');
+    return;
+  }
+  const text = $('#install-text');
+  const steps = $('#install-steps');
+  const go = $('#install-go');
+
+  if (deferredPrompt) {
+    text.textContent = 'Add Blip to your home screen for one-tap access and a full-screen app view.';
+    steps.hidden = true;
+    go.hidden = false;
+  } else if (isIOSSafari()) {
+    text.textContent = 'Add Blip to your home screen in three quick steps.';
+    steps.innerHTML = '<li>Tap the Share button at the bottom of Safari.</li>'
+      + '<li>Scroll down and tap “Add to Home Screen”.</li>'
+      + '<li>Tap Add in the top-right corner.</li>';
+    steps.hidden = false;
+    go.hidden = true;
+  } else {
+    text.textContent = 'Blip installs from Safari on iPhone. Open this page in Safari, then add it to your home screen.';
+    steps.innerHTML = '<li>Copy this address and open it in Safari.</li>'
+      + '<li>Tap Share, then “Add to Home Screen”.</li>';
+    steps.hidden = false;
+    go.hidden = true;
+  }
+
+  $('#install-sheet').classList.add('open');
+  $('#scrim').classList.add('show');
+}
+
+async function runInstall() {
+  if (!deferredPrompt) return;
+  const prompt = deferredPrompt;
+  prompt.prompt();
+  const { outcome } = await prompt.userChoice;
+  deferredPrompt = null;
+  closeAll();
+  refreshInstallEntries();
+  toast(outcome === 'accepted' ? 'Installing Blip…' : 'You can install Blip anytime from the menu.');
+}
+
+function dismissInstall() {
+  localStorage.setItem(INSTALL_DISMISS_KEY, String(Date.now()));
+  closeAll();
+}
+
+// Offer install once per session, right after sign-in, unless dismissed recently.
+function maybeShowInstall() {
+  if (!profile || !installSupported() || recentlyDismissed()) return;
+  if (sessionStorage.getItem('blip.installShown')) return;
+  sessionStorage.setItem('blip.installShown', '1');
+  openInstall();
+}
+
+function initAccountAndInstall() {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    refreshInstallEntries();
+    if (profile) maybeShowInstall();
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    refreshInstallEntries();
+    toast('Blip is installed. Open it from your home screen.');
+  });
+
+  $('#install-go').addEventListener('click', runInstall);
+  $('#install-later').addEventListener('click', dismissInstall);
+  $('#install-settings').addEventListener('click', openInstall);
+
+  $('#ob-next').addEventListener('click', () => {
+    if (onboardSlide < 2) showSlide(onboardSlide + 1);
+    else showAuthStep();
+  });
+  $('#ob-skip').addEventListener('click', showAuthStep);
+
+  $('#google-btn').addEventListener('click', () => {
+    signInWithGoogle().catch((err) => authMsg(err.message));
+  });
+  $('#email-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = $('#email').value.trim();
+    if (!/^\S+@\S+\.\S+$/.test(v)) {
+      authMsg('Enter a valid email address.');
+      return;
+    }
+    signInWithEmail(v).catch((err) => authMsg(err.message));
+  });
+  $('#skip-auth').addEventListener('click', () => {
+    setProfile({ mode: 'guest', name: 'Guest', email: '', avatar: null });
+    finishOnboarding();
+  });
+
+  $('#signout').addEventListener('click', async () => {
+    if (!profile || profile.mode === 'guest') {
+      showOnboarding(true);
+      return;
+    }
+    if (sb) await sb.auth.signOut();
+    setProfile(null);
+    showOnboarding(true);
+  });
+
+  refreshInstallEntries();
+}
+
+async function initAuth() {
+  if (CFG.supabaseUrl && CFG.supabaseAnonKey && window.supabase) {
+    sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
+    const { data } = await sb.auth.getSession();
+    if (data.session) await fromSession(data.session);
+    sb.auth.onAuthStateChange((_event, session) => {
+      if (session) fromSession(session);
+    });
+  }
+  renderProfile();
+  authMsg(sb ? '' : 'Preview mode: connect Supabase in config.js to verify email and enable Google.');
+  if (!profile) showOnboarding();
+}
+
 // ---------- themes ----------
 const THEMES = ['green', 'classic', 'modern', 'claude'];
 
@@ -402,6 +647,7 @@ function openSheet() {
 function closeAll() {
   $('#drawer').classList.remove('open');
   $('#sheet').classList.remove('open');
+  $('#install-sheet').classList.remove('open');
   $('#scrim').classList.remove('show');
   $('#input').blur();
 }
@@ -557,6 +803,7 @@ for (const item of $$('.drawer-item')) {
     const action = item.dataset.drawer;
     closeAll();
     if (action === 'settings' || action === 'themes') showView('settings');
+    else if (action === 'install') openInstall();
     else toast('Coming soon');
   });
 }
@@ -591,6 +838,8 @@ setInterval(() => {
 setTheme(settings.theme || 'green', true);
 showView('home');
 render();
+initAccountAndInstall();
+initAuth();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');

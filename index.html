@@ -116,6 +116,14 @@
     <!-- Settings -->
     <section id="view-settings" class="view" hidden>
       <div class="card">
+        <p class="card-title">Account</p>
+        <p id="account-line" class="card-hint"></p>
+        <button id="signout" class="row-btn" type="button">Sign in or create account</button>
+      </div>
+      <div class="card">
+        <button id="install-settings" class="row-btn" type="button" hidden>Install Blip app</button>
+      </div>
+      <div class="card">
         <p class="card-title">Theme</p>
         <div class="theme-grid" role="group" aria-label="Theme">
           <button class="theme-opt" data-theme-pick="green" type="button" aria-pressed="false">
@@ -175,9 +183,9 @@
   <!-- Side menu -->
   <aside id="drawer" class="drawer" aria-label="Menu">
     <div class="profile">
-      <div class="avatar" aria-hidden="true"><img src="assets/logo/symbol-color.svg" alt=""></div>
-      <h2>Blip</h2>
-      <p>Say it. Get it done.</p>
+      <div id="avatar" class="avatar" aria-hidden="true"><img src="assets/logo/symbol-color.svg" alt=""></div>
+      <h2 id="profile-name">Blip</h2>
+      <p id="profile-sub">Say it. Get it done.</p>
       <span class="badge">Personal</span>
     </div>
     <div class="drawer-spacer"></div>
@@ -188,6 +196,9 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H8l-4 4z"/><path d="M8 8h8M8 12h5"/></svg>Share feedback
     </button>
     <div class="divider"></div>
+    <button id="drawer-install" class="drawer-item" data-drawer="install" type="button" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Install app
+    </button>
     <button class="drawer-item" data-drawer="themes" type="button">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="16" cy="10" r="1.2"/></svg>Themes
     </button>
@@ -208,8 +219,67 @@
     </div>
   </section>
 
+  <!-- Onboarding: three intro slides, then sign-in -->
+  <section id="onboarding" class="onboard" hidden aria-label="Welcome to Blip">
+    <div id="ob-intro" class="ob-body">
+      <div class="slides">
+        <div class="slide on">
+          <img class="ob-mark" src="assets/logo/symbol-color.svg" alt="">
+          <h1>Say it.</h1>
+          <p>Speak or type what’s on your day. Blip turns it into a list.</p>
+        </div>
+        <div class="slide">
+          <img class="ob-mark" src="assets/logo/symbol-color.svg" alt="">
+          <h1>Get it done.</h1>
+          <p>Tap to check things off, tap a task to edit it, swipe to remove.</p>
+        </div>
+        <div class="slide">
+          <img class="ob-mark" src="assets/logo/symbol-color.svg" alt="">
+          <h1>Keep it close.</h1>
+          <p>Add Blip to your home screen for one-tap access.</p>
+        </div>
+      </div>
+      <div class="dots" aria-hidden="true"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></div>
+      <button id="ob-next" class="btn primary" type="button">Next</button>
+      <button id="ob-skip" class="link" type="button">Skip</button>
+    </div>
+
+    <div id="ob-auth" class="ob-body" hidden>
+      <img class="ob-mark" src="assets/logo/symbol-color.svg" alt="">
+      <h1>Sign in to Blip</h1>
+      <p>Continue with Google or your email.</p>
+      <div class="auth-stack">
+        <button id="google-btn" class="btn google" type="button">Continue with Google</button>
+        <p class="or">or</p>
+        <form id="email-form" class="auth-stack">
+          <input id="email" type="email" placeholder="you@example.com" autocomplete="email" required>
+          <button class="btn primary" type="submit">Continue with email</button>
+        </form>
+        <p id="auth-msg" class="auth-msg" role="status" aria-live="polite"></p>
+      </div>
+      <button id="skip-auth" class="link" type="button">Skip for now</button>
+    </div>
+  </section>
+
+  <!-- Install assistant -->
+  <section id="install-sheet" class="sheet" aria-label="Install Blip">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="install-body">
+      <img class="install-mark" src="assets/logo/symbol-color.svg" alt="">
+      <h2>Install Blip</h2>
+      <p id="install-text"></p>
+      <ol id="install-steps" class="steps" hidden></ol>
+      <div class="install-actions">
+        <button id="install-go" class="btn primary" type="button">Install</button>
+        <button id="install-later" class="link" type="button">Not now</button>
+      </div>
+    </div>
+  </section>
+
   <p id="toast" class="toast" role="status" aria-live="polite"></p>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
