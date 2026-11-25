@@ -24,9 +24,8 @@
     (function () {
       if (location.hostname === 'blip.akshayashokanpothan.com') return;
       document.documentElement.dataset.env = 'preview';
-      // The install name and icons come from the server (vercel.json serves the
-      // preview manifest and icons on the preview address). Chrome on Android
-      // ignores a manifest swapped in by script, so this only sets the title.
+      // The install name and icons are swapped at build time for preview
+      // deployments (scripts/vercel-build.sh); this only sets the titles.
       var t = document.querySelector('meta[name="apple-mobile-web-app-title"]'); if (t) t.setAttribute('content', 'Blip Preview');
       var svg = document.querySelector('link[rel="icon"][type="image/svg+xml"]'); if (svg) svg.remove();
       document.title = 'Blip (Preview)';
