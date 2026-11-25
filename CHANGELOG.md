@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.0 (in progress, not released)
+## 2.0.0 (2026-11-25)
 
 Accounts that sync across devices.
 

@@ -5,7 +5,7 @@
 // v2: when you sign in (Supabase keys in config.js), sync.js also keeps tasks,
 // notes and profile settings in step across your devices.
 
-const APP_VERSION = '2.0.0-preview';
+const APP_VERSION = '2.0.0';
 
 const TASKS_KEY = 'blip.tasks.v1';
 const NOTES_KEY = 'blip.notes.v1';
@@ -1444,6 +1444,12 @@ async function createAccount(email, password) {
     options: { emailRedirectTo: redirectUrl(), data: { has_password: true } },
   });
   if (error) throw error;
+  // Supabase answers "success" for an email that already has an account, but
+  // sends no mail. It shows up as a user with no identities.
+  if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    authMsg('This email already has an account. Sign in, or use Forgot password.');
+    return;
+  }
   if (!data.session) authMsg('Check your inbox to confirm your email, then sign in.');
 }
 
