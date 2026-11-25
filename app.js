@@ -25,6 +25,23 @@ if (!localStorage.getItem(RESET_FLAG)) {
   wipeDevice();
   localStorage.setItem(RESET_FLAG, '1');
 }
+// The live site runs on this address. Anywhere else (the preview link, Vercel
+// branch builds, localhost) shows a "Preview" badge so test builds are easy to spot.
+const PRODUCTION_HOSTS = ['blip.akshayashokanpothan.com'];
+const IS_PREVIEW = !PRODUCTION_HOSTS.includes(location.hostname);
+function markPreview() {
+  if (!IS_PREVIEW) return;
+  document.documentElement.dataset.env = 'preview';
+  for (const el of document.querySelectorAll('.brand, .side-brand')) {
+    const b = document.createElement('span');
+    b.className = 'env-badge';
+    b.textContent = 'Preview';
+    el.after(b);
+  }
+  document.title = 'Blip (Preview)';
+  const v = document.getElementById('about-version');
+  if (v) v.textContent = `Version ${APP_VERSION} · Preview`;
+}
 const MODEL = 'claude-haiku-5-5';
 const THEMES = ['light', 'dark'];
 
@@ -2605,3 +2622,5 @@ checkReminders();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');
 }
+
+markPreview();
