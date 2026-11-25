@@ -1253,14 +1253,30 @@ function initDevice() {
   });
 
   // Phone home: the text box under the mic sends typed tasks through the same review step.
+  const composerInput = $('#composer-input');
+  const sizeComposer = () => {
+    composerInput.style.height = 'auto';
+    composerInput.style.height = composerInput.scrollHeight + 'px';
+  };
+  composerInput.addEventListener('input', sizeComposer);
+  // Enter sends; Shift+Enter starts a new line.
+  composerInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      $('#home-composer').requestSubmit();
+    }
+  });
   $('#home-composer').addEventListener('submit', (e) => {
     e.preventDefault();
-    const input = $('#composer-input');
-    const v = input.value.trim();
+    const v = composerInput.value.trim();
     if (!v) return;
-    input.value = '';
+    composerInput.value = '';
+    sizeComposer();
     processText(v);
   });
+  $('#composer-plus').addEventListener('click', () => composerInput.focus());
+  $('#composer-pill').addEventListener('click', () => composerInput.focus());
+  $('#composer-mic').addEventListener('click', () => openCapture('voice'));
 
   // Desktop shortcuts. They never fire while typing.
   document.addEventListener('keydown', (e) => {
@@ -1289,6 +1305,8 @@ function initDevice() {
 function setTheme(name = settings.theme) {
   if (!THEMES.includes(name)) name = 'light';
   root.dataset.theme = name;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', name === 'dark' ? '#262624' : '#1B3B2B');
   if (settings.theme !== name) {
     settings.theme = name;
     saveSettings();
