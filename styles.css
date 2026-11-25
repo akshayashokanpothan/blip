@@ -1040,10 +1040,13 @@ main {
 }
 
 @media (min-width: 1280px) {
+  /* Use the full width: stats sit flush against the right padding, with the
+     gap between the main column and the stats as the only spacing. */
+  main { max-width: none; }
   .home-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 280px;
-    gap: 28px;
+    gap: 32px;
     align-items: start;
   }
   .home-main { min-width: 0; }
