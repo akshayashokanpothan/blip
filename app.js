@@ -352,10 +352,10 @@ function render() {
 }
 
 // ---------- themes ----------
-const THEMES = ['classic', 'modern', 'claude'];
+const THEMES = ['green', 'classic', 'modern', 'claude'];
 
 function setTheme(name, quiet = false) {
-  if (!THEMES.includes(name)) name = 'modern';
+  if (!THEMES.includes(name)) name = 'green';
   document.documentElement.dataset.theme = name;
   if (settings.theme !== name) {
     settings.theme = name;
@@ -588,7 +588,7 @@ setInterval(() => {
   if (!document.querySelector('[contenteditable="true"]')) render();
 }, 60_000);
 
-setTheme(settings.theme || 'modern', true);
+setTheme(settings.theme || 'green', true);
 showView('home');
 render();
 

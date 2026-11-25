@@ -1,0 +1,44 @@
+/* Blip Brand Tokens — Green Edition */
+:root {
+  --blip-primary: #1B3B2B;
+  --blip-secondary: #2D5A42;
+  --blip-pastel: #E8F0EC;
+  --blip-surface: #F8FAF7;
+  --blip-ink: #0F1F18;
+  --blip-grey: #6B7280;
+  --blip-white: #FFFFFF;
+  --blip-success: #58B889;
+  --blip-reminder: #D6A24B;
+  --blip-focus: #6A8D7B;
+
+  --blip-font-display: "Manrope", sans-serif;
+  --blip-font-ui: "Inter", sans-serif;
+  --blip-font-weight-display: 700;
+  --blip-font-weight-ui: 400;
+  --blip-font-weight-medium: 500;
+  --blip-font-weight-semibold: 600;
+  --blip-font-weight-bold: 700;
+
+  --blip-radius-xs: 6px;
+  --blip-radius-sm: 10px;
+  --blip-radius-md: 14px;
+  --blip-radius-lg: 20px;
+  --blip-radius-xl: 28px;
+  --blip-radius-pill: 999px;
+
+  --blip-space-1: 4px;
+  --blip-space-2: 8px;
+  --blip-space-3: 12px;
+  --blip-space-4: 16px;
+  --blip-space-5: 20px;
+  --blip-space-6: 24px;
+  --blip-space-8: 32px;
+  --blip-space-10: 40px;
+  --blip-space-12: 48px;
+  --blip-space-16: 64px;
+
+  --blip-motion-fast: 120ms;
+  --blip-motion-normal: 200ms;
+  --blip-motion-slow: 320ms;
+  --blip-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}

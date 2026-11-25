@@ -4,7 +4,35 @@
    - claude:  dark, warm neutrals, serif display type, terracotta accent
    Each theme is just a set of CSS variables on <html data-theme="...">. */
 
+@import url("assets/brand/brand-tokens.css");
+
+/* Blip Green (default): the official brand kit. Colors and type come from the
+   kit's tokens (assets/brand/brand-tokens.css), not hand-picked values. */
 :root,
+[data-theme="green"] {
+  --bg: var(--blip-surface);
+  --card: var(--blip-white);
+  --ink: var(--blip-ink);
+  --muted: var(--blip-grey);
+  --line: #E3EBE6;
+  --border: #C9D6CE;
+  --pill: var(--blip-pastel);
+  --fab: var(--blip-primary);
+  --fab-ink: var(--blip-white);
+  --accent: var(--blip-secondary);
+  --dot: var(--blip-reminder);
+  --focus: var(--blip-focus);
+  --done: var(--blip-primary);
+  --red: #B42318;
+  --font: var(--blip-font-ui);
+  --display: var(--blip-font-display);
+  --brand-weight: var(--blip-font-weight-display);
+  --r-card: var(--blip-radius-lg);
+  --r-field: var(--blip-radius-md);
+  --shadow: 0 1px 2px rgba(15, 31, 24, 0.05);
+  --fab-shadow: 0 10px 24px rgba(27, 59, 43, 0.28);
+}
+
 [data-theme="modern"] {
   --bg: #EEEEF0;
   --card: #FFFFFF;
@@ -333,7 +361,7 @@ main {
   height: 8px;
   margin-right: 8px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--dot, var(--accent));
   vertical-align: middle;
   transform: translateY(-2px);
 }
@@ -407,7 +435,7 @@ main {
 /* theme picker */
 .theme-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   padding: 16px;
 }
@@ -431,6 +459,7 @@ main {
   height: 46px;
   border-radius: 10px;
 }
+.swatch.green   { background: linear-gradient(135deg, #F8FAF7 50%, #1B3B2B 50%); }
 .swatch.classic { background: linear-gradient(135deg, #F2F2F7 50%, #007AFF 50%); }
 .swatch.modern  { background: linear-gradient(135deg, #EEEEF0 50%, #161618 50%); }
 .swatch.claude  { background: linear-gradient(135deg, #262624 50%, #D97757 50%); }
@@ -691,3 +720,29 @@ main {
 .toast.show { opacity: 1; }
 
 @keyframes pulse { 50% { opacity: 0.6; } }
+
+/* ---------- brand: logo, focus, motion ---------- */
+.brand .logo { display: block; line-height: 0; }
+.brand .logo svg { display: block; height: 34px; width: auto; }
+.brand .logo-dark { display: none; }
+[data-theme="claude"] .brand .logo-light { display: none; }
+[data-theme="claude"] .brand .logo-dark { display: block; }
+
+.avatar img { width: 56px; height: auto; display: block; }
+
+/* Blip Green uses hairline outlines like the kit's cards */
+[data-theme="green"] .search,
+[data-theme="green"] .segmented { border-width: 1px; }
+
+:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
