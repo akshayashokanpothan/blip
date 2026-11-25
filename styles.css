@@ -635,9 +635,12 @@ main {
 
   .quick-add { display: flex; }
   .composer { display: none; }
-  #view-home .home-main { min-height: 0; }
+  /* Desktop home: greeting at the top, mic in the middle, text box at the bottom. */
+  #view-home .home-main { display: flex; flex-direction: column; min-height: calc(100dvh - 92px); }
+  #view-home .hero { order: 1; }
+  #view-home .mic-wrap { order: 2; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 0; }
+  #view-home .quick-add { order: 3; margin: 0; position: sticky; bottom: 24px; }
   .shortcut-hint { display: block; }
-  #view-home .mic-wrap { padding-top: 20px; }
 
   .capture { left: 248px; }
   .onboard { left: 248px; }
