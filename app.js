@@ -674,8 +674,8 @@ function renderConfirm() {
       </div>
       <div class="cap-fields three">
         <label class="full">Date<input type="date" data-f="date" value="${esc(it.date)}"></label>
-        <label><span>Start time <b class="req" aria-hidden="true">*</b></span><input type="time" data-f="time" value="${esc(it.time)}" required${it.missing ? ' class="invalid"' : ''}></label>
-        <label><span>End time <span class="opt">(optional)</span></span><input type="time" data-f="endTime" value="${esc(it.endTime)}"></label>
+        <label>Start time<input type="time" data-f="time" value="${esc(it.time)}"></label>
+        <label>End time<input type="time" data-f="endTime" value="${esc(it.endTime)}"></label>
       </div>
       <div class="prio-row" role="group" aria-label="Priority">${priorityChips(it.priority)}</div>
       ${notesField(`data-f="notes" aria-label="Notes for task ${i + 1}"`, it.notes)}
@@ -686,7 +686,7 @@ function renderConfirm() {
 // A two-line notes box that grows as you type, with a mic for dictation.
 function notesField(attrs, value = '') {
   return `<div class="notes-field">
-      <textarea ${attrs} rows="2" data-autogrow placeholder="Add notes (optional)">${esc(value)}</textarea>
+      <textarea ${attrs} rows="2" data-autogrow placeholder="Add notes">${esc(value)}</textarea>
       <button class="dictate" type="button" data-dictate aria-label="Speak notes" aria-pressed="false">${ICON.mic}</button>
     </div>`;
 }
@@ -823,10 +823,6 @@ $('#cap-items').addEventListener('input', (e) => {
   if (!li || !field) return;
   const it = cap.items[Number(li.dataset.idx)];
   it[field] = e.target.value;
-  if (field === 'time' && e.target.value) {
-    it.missing = false;
-    e.target.classList.remove('invalid');
-  }
 });
 $('#cap-items').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-act]');
@@ -851,13 +847,9 @@ $('#cap-add').addEventListener('click', () => {
     toast('Nothing to add yet.');
     return;
   }
-  // Start time is required; end time is optional but must come after it.
-  const missing = items.filter((i) => !i.time);
-  if (missing.length) {
-    for (const i of missing) i.missing = true;
-    renderConfirm();
-    $('#cap-items input.invalid')?.focus();
-    toast(missing.length === 1 ? 'Add a start time' : `Add a start time for ${missing.length} tasks`);
+  // Times are optional. An end time only counts with a start time before it.
+  if (items.some((i) => i.endTime && !i.time)) {
+    toast('Set a start time to go with the end time');
     return;
   }
   if (items.some((i) => i.endTime && i.endTime <= i.time)) {
