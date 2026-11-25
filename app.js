@@ -282,6 +282,7 @@ function todayItemHTML(t) {
       <div class="row${t.done ? ' done' : ''}${t.priority === 'high' ? ' high' : ''}">
         <button class="circle" data-act="toggle" aria-label="Mark done"></button>
         <span class="text" data-act="edit">${esc(t.text)}</span>
+        <button class="x-del" data-act="delete" aria-label="Delete task">×</button>
       </div>
       <button class="swipe-del" data-act="delete">Delete</button>
     </li>`;
@@ -305,6 +306,13 @@ const matchesQuery = (t) => !ui.query || t.text.toLowerCase().includes(ui.query)
 
 function renderHome() {
   const today = todayKey();
+
+  const all = tasks.filter((t) => t.date === today);
+  const allDone = all.filter((t) => t.done).length;
+  $('#stat-total').textContent = all.length;
+  $('#stat-done').textContent = allDone;
+  $('#stat-open').textContent = all.length - allDone;
+  $('#stat-carry').textContent = tasks.filter((t) => t.date < today && !t.done).length;
 
   let list = tasks.filter((t) => t.date === today && matchesQuery(t));
   if (ui.filter === 'open') list = list.filter((t) => !t.done);
@@ -471,6 +479,7 @@ function refreshInstallEntries() {
   const show = installSupported();
   $('#drawer-install').hidden = !show;
   $('#install-settings').hidden = !show;
+  $('#side-install').hidden = !show;
 }
 
 function openInstall() {
@@ -493,11 +502,16 @@ function openInstall() {
       + '<li>Tap Add in the top-right corner.</li>';
     steps.hidden = false;
     go.hidden = true;
-  } else {
+  } else if (isIOS()) {
     text.textContent = 'Blip installs from Safari on iPhone. Open this page in Safari, then add it to your home screen.';
     steps.innerHTML = '<li>Copy this address and open it in Safari.</li>'
       + '<li>Tap Share, then “Add to Home Screen”.</li>';
     steps.hidden = false;
+    go.hidden = true;
+  } else {
+    // Desktop and Android browsers that don't expose the install prompt.
+    text.textContent = 'Look for the install icon in your browser’s address bar, or open the browser menu and choose “Install Blip”.';
+    steps.hidden = true;
     go.hidden = true;
   }
 
@@ -545,6 +559,7 @@ function initAccountAndInstall() {
   $('#install-go').addEventListener('click', runInstall);
   $('#install-later').addEventListener('click', dismissInstall);
   $('#install-settings').addEventListener('click', openInstall);
+  $('#side-install').addEventListener('click', openInstall);
 
   $('#ob-next').addEventListener('click', () => {
     if (onboardSlide < 2) showSlide(onboardSlide + 1);
@@ -596,6 +611,80 @@ async function initAuth() {
   if (!profile) showOnboarding();
 }
 
+// ---------- device, viewport and desktop ----------
+// Layout is chosen by CSS media queries (width). Behavior is chosen here by
+// data attributes on <html>: layout (phone | tablet | desktop), pointer
+// (touch | mouse), os, and orientation.
+const root = document.documentElement;
+const mqDesktop = window.matchMedia('(min-width: 1024px)');
+const mqTablet = window.matchMedia('(min-width: 768px)');
+const mqFine = window.matchMedia('(pointer: fine)');
+
+function detectOS() {
+  const ua = navigator.userAgent;
+  if (/iphone|ipad|ipod/i.test(ua)) return 'ios';
+  if (/android/i.test(ua)) return 'android';
+  if (/macintosh|mac os x/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'macos';
+  if (/windows/i.test(ua)) return 'windows';
+  if (/cros/i.test(ua)) return 'chromeos';
+  if (/linux/i.test(ua)) return 'linux';
+  return 'other';
+}
+
+function applyDevice() {
+  root.dataset.layout = mqDesktop.matches ? 'desktop' : mqTablet.matches ? 'tablet' : 'phone';
+  root.dataset.pointer = mqFine.matches ? 'mouse' : 'touch';
+  root.dataset.os = detectOS();
+  root.dataset.orientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+}
+
+function initDevice() {
+  applyDevice();
+  let lastLayout = root.dataset.layout;
+
+  let timer;
+  window.addEventListener('resize', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      applyDevice();
+      // Dialogs and the drawer belong to the phone layout; close them on desktop.
+      if (root.dataset.layout !== lastLayout && root.dataset.layout === 'desktop') closeAll();
+      lastLayout = root.dataset.layout;
+    }, 120);
+  });
+  mqFine.addEventListener?.('change', applyDevice);
+
+  $('#quick-add').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = $('#quick-input');
+    const v = input.value.trim();
+    if (!v) return;
+    input.value = '';
+    handleInput(v);
+  });
+
+  // Desktop shortcuts. They never fire while typing.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeAll();
+      return;
+    }
+    const typing = /input|textarea|select/i.test(e.target.tagName) || e.target.isContentEditable;
+    if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!mqDesktop.matches) return;
+
+    if (e.key === 'n' || e.key === 'N') {
+      e.preventDefault();
+      showView('home');
+      $('#quick-input').focus();
+    } else if (e.key === '/') {
+      e.preventDefault();
+      showView('home');
+      $('#search').focus();
+    }
+  });
+}
+
 // ---------- themes ----------
 const THEMES = ['green', 'classic', 'modern', 'claude'];
 
@@ -627,7 +716,7 @@ function greeting() {
 function showView(name) {
   ui.view = name;
   for (const v of $$('.view')) v.hidden = v.id !== `view-${name}`;
-  for (const t of $$('.tab')) t.classList.toggle('on', t.dataset.tab === name);
+  for (const t of $$('[data-tab]')) t.classList.toggle('on', t.dataset.tab === name);
   if (name === 'done') renderDone();
   if (name === 'settings') renderSettings();
   window.scrollTo({ top: 0 });
@@ -761,7 +850,7 @@ document.body.addEventListener('click', (e) => {
 });
 
 // Bottom tabs.
-for (const tab of $$('.tab')) {
+for (const tab of $$('[data-tab]')) {
   tab.addEventListener('click', () => showView(tab.dataset.tab));
 }
 
@@ -840,6 +929,7 @@ showView('home');
 render();
 initAccountAndInstall();
 initAuth();
+initDevice();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');

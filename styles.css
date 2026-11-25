@@ -905,6 +905,223 @@ main {
   outline-offset: 2px;
 }
 
+/* ---------- responsive layouts ----------
+   Phone (default): bottom tabs, floating + button, bottom sheets.
+   Tablet (768px+): same controls in a wider column.
+   Desktop (1024px+): fixed sidebar, inline quick add, modal dialogs.
+   Wide (1280px+): stats panel beside the list. */
+
+.logo { display: block; line-height: 0; }
+.logo svg { display: block; height: 32px; width: auto; }
+.logo-dark { display: none; }
+[data-theme="claude"] .logo-light { display: none; }
+[data-theme="claude"] .logo-dark { display: block; }
+
+.sidebar,
+.quick-add,
+.home-side,
+.shortcut-hint,
+.x-del { display: none; }
+
+.home-layout { display: block; }
+
+.side-brand { display: flex; align-items: center; padding: 6px 12px 28px; }
+.side-brand .logo svg { height: 34px; }
+
+.side-nav { display: flex; flex-direction: column; gap: 4px; }
+.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: var(--r-field);
+  background: none;
+  font: inherit;
+  font-size: 16px;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+.nav-item svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.nav-item:hover { background: var(--bg); color: var(--ink); }
+.nav-item.on { background: var(--pill); color: var(--ink); font-weight: 600; }
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  main { max-width: 680px; }
+  .tabbar { max-width: 680px; }
+  .fab { right: max(24px, calc(50% - 324px)); }
+}
+
+@media (min-width: 1024px) {
+  body { padding-left: 248px; }
+
+  .sidebar {
+    display: flex;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 248px;
+    flex-direction: column;
+    padding: calc(env(safe-area-inset-top) + 24px) 16px 20px;
+    background: var(--card);
+    border-right: 1px solid var(--line);
+    z-index: 20;
+  }
+
+  .topbar,
+  .tabbar,
+  .fab { display: none; }
+
+  main {
+    max-width: 1040px;
+    padding: 28px 40px 64px;
+  }
+
+  .quick-add {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 20px;
+    padding: 8px 8px 8px 18px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    box-shadow: var(--shadow);
+  }
+  .quick-add input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    font-size: 17px;
+    color: var(--ink);
+  }
+  .quick-add .btn { width: auto; padding: 10px 18px; font-size: 15px; }
+  .kbd {
+    font: inherit;
+    font-size: 12px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 7px;
+  }
+
+  .date,
+  .section-label,
+  .search,
+  .segmented,
+  .card { margin-left: 0; margin-right: 0; }
+  .date { margin-top: 0; }
+  .search { margin-top: 0; }
+
+  .toast { bottom: 32px; }
+
+  /* Dialogs become centered modals instead of bottom sheets. */
+  .sheet {
+    left: 50%;
+    right: auto;
+    top: 50%;
+    bottom: auto;
+    max-width: none;
+    width: min(480px, calc(100vw - 32px));
+    margin: 0;
+    padding: 20px 24px 24px;
+    border-radius: 24px;
+    transform: translate(-50%, -46%) scale(0.97);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s;
+  }
+  .sheet.open {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .sheet .grab { display: none; }
+}
+
+@media (min-width: 1280px) {
+  .home-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 28px;
+    align-items: start;
+  }
+  .home-main { min-width: 0; }
+  .home-side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: sticky;
+    top: 28px;
+  }
+  .shortcut-hint { display: block; margin: 4px 4px 0; font-size: 13px; color: var(--muted); }
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  background: var(--card);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow);
+}
+.stat span { font-size: 14px; color: var(--muted); }
+.stat b {
+  font-family: var(--display);
+  font-size: 30px;
+  font-weight: var(--brand-weight);
+  color: var(--ink);
+}
+
+/* Delete control for mouse users; touch users keep swipe. */
+.x-del {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row:hover { background: var(--bg); }
+  .x-del {
+    display: grid;
+    place-items: center;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .row:hover .x-del,
+  .row:focus-within .x-del,
+  .x-del:focus-visible { opacity: 1; }
+  .x-del:hover { background: var(--card); color: var(--red); }
+  .swipe-del { display: none; }
+  .circle:hover { border-color: var(--accent); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
