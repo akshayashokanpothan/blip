@@ -5,7 +5,7 @@
 // v2: when you sign in (Supabase keys in config.js), sync.js also keeps tasks,
 // notes and profile settings in step across your devices.
 
-const APP_VERSION = '2.2.4';
+const APP_VERSION = '2.2.5';
 
 const TASKS_KEY = 'blip.tasks.v1';
 const NOTES_KEY = 'blip.notes.v1';
@@ -2595,49 +2595,56 @@ function initDevice() {
     processText(v);
   });
   $('#composer-plus').addEventListener('click', () => composerInput.focus());
-  // Version picker on the composer. It's a look-and-feel choice only:
-  // every option uses the same parser.
+  // Version pickers (phone composer and desktop quick-add). A look-and-feel
+  // choice only: every option uses the same parser.
   const MODELS = [
     ['blip-2.0', 'Blip 2.0', 'Latest'],
     ['blip-1.0', 'Blip 1.0', 'Classic'],
     ['blip-1.0-beta', 'Blip 1.0 beta', 'Early preview'],
   ];
-  const menu = $('#model-menu');
-  const pill = $('#composer-pill');
+  const pickers = [...document.querySelectorAll('.model-pick')].map((el) => ({
+    el, pill: el.querySelector('.model-btn'), menu: el.querySelector('.model-menu'), name: el.querySelector('.model-name'),
+  }));
   const currentModel = () => (MODELS.find((m) => m[0] === settings.model) || MODELS[0]);
   const renderModels = () => {
     const cur = currentModel();
-    $('#model-name').textContent = cur[1];
-    menu.innerHTML = MODELS.map(([id, name, sub]) => `
+    pickers.forEach((p) => {
+      p.name.textContent = cur[1];
+      p.menu.innerHTML = MODELS.map(([id, name, sub]) => `
       <li role="option" class="model-opt${id === cur[0] ? ' on' : ''}" data-model="${id}" aria-selected="${id === cur[0]}" tabindex="-1">
         <span><b>${name}</b><small>${sub}</small></span>
         <svg class="i model-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>
       </li>`).join('');
+    });
   };
-  const setMenu = (open) => {
-    menu.hidden = !open;
-    pill.setAttribute('aria-expanded', String(open));
-    if (open) menu.querySelector('.on')?.focus();
+  const setMenu = (p, open) => {
+    p.menu.hidden = !open;
+    p.pill.setAttribute('aria-expanded', String(open));
+    if (open) p.menu.querySelector('.on')?.focus();
   };
   renderModels();
-  pill.addEventListener('click', (e) => { e.stopPropagation(); setMenu(menu.hidden); });
-  menu.addEventListener('click', (e) => {
-    const li = e.target.closest('[data-model]');
-    if (!li) return;
-    settings.model = li.dataset.model;
-    saveSettings();
-    renderModels();
-    setMenu(false);
-    toast(`Switched to ${currentModel()[1]}`);
+  pickers.forEach((p) => {
+    p.pill.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); setMenu(p, p.menu.hidden); });
+    p.menu.addEventListener('click', (e) => {
+      const li = e.target.closest('[data-model]');
+      if (!li) return;
+      settings.model = li.dataset.model;
+      saveSettings();
+      renderModels();
+      setMenu(p, false);
+      toast(`Switched to ${currentModel()[1]}`);
+    });
+    p.menu.addEventListener('keydown', (e) => {
+      const items = [...p.menu.querySelectorAll('[data-model]')];
+      const i = items.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus(); }
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.activeElement.click(); }
+      else if (e.key === 'Escape') { e.stopPropagation(); setMenu(p, false); p.pill.focus(); }
+    });
   });
-  menu.addEventListener('keydown', (e) => {
-    const items = [...menu.querySelectorAll('[data-model]')];
-    const i = items.indexOf(document.activeElement);
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus(); }
-    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.activeElement.click(); }
-    else if (e.key === 'Escape') { setMenu(false); pill.focus(); }
+  document.addEventListener('click', (e) => {
+    pickers.forEach((p) => { if (!p.menu.hidden && !p.el.contains(e.target)) setMenu(p, false); });
   });
-  document.addEventListener('click', (e) => { if (!menu.hidden && !e.target.closest('.model-pick')) setMenu(false); });
   $('#composer-mic').addEventListener('click', () => openCapture('voice'));
 
   // Desktop shortcuts. They never fire while typing.

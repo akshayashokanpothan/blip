@@ -209,6 +209,10 @@
           <form id="quick-add" class="quick-add" autocomplete="off">
             <input id="quick-input" type="text" placeholder="Add a task, e.g. call mom tomorrow at 6 pm" aria-label="Add a task">
             <kbd class="kbd" title="Press N to focus">N</kbd>
+            <div class="model-pick quick-model">
+              <button id="quick-model" class="quick-model-btn model-btn" type="button" aria-haspopup="listbox" aria-expanded="false" title="Blip version"><span class="model-name">Blip 2.0</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+              <ul class="model-menu" role="listbox" aria-label="Blip version" hidden></ul>
+            </div>
             <button id="quick-mic" class="icon-btn" type="button" aria-label="Speak a task">
               <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg>
             </button>
@@ -234,7 +238,7 @@
             <div class="composer-bar">
               <button id="composer-plus" class="composer-plus" type="button" aria-label="Start typing a task" title="Type a task">+</button>
               <div class="model-pick">
-                <button id="composer-pill" class="composer-pill" type="button" aria-haspopup="listbox" aria-expanded="false"><span id="model-name">Blip 2.0</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+                <button id="composer-pill" class="composer-pill model-btn" type="button" aria-haspopup="listbox" aria-expanded="false"><span id="model-name" class="model-name">Blip 2.0</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
                 <ul id="model-menu" class="model-menu" role="listbox" aria-label="Blip version" hidden></ul>
               </div>
               <span class="composer-spacer" aria-hidden="true"></span>
@@ -539,7 +543,7 @@
 
       <p class="section-label">About</p>
       <div class="settings-group">
-        <div class="setting-row" style="border-top:0"><span>Blip</span><span id="about-version" class="muted">Version 2.2.4</span></div>
+        <div class="setting-row" style="border-top:0"><span>Blip</span><span id="about-version" class="muted">Version 2.2.5</span></div>
       </div>
     </section>
   </main>

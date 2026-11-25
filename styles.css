@@ -291,6 +291,12 @@ main {
 .model-opt .model-check { width: 18px; height: 18px; flex: none; visibility: hidden; color: var(--ink); }
 .model-opt.on { background: var(--pill); }
 .model-opt.on .model-check { visibility: visible; }
+.quick-model { flex: none; }
+.quick-model-btn { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 8px 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+.quick-model-btn:hover, .quick-model-btn[aria-expanded="true"] { background: var(--pill); color: var(--ink); }
+.quick-model-btn svg.i { width: 15px; height: 15px; opacity: .7; transition: transform var(--t-fast) var(--ease); }
+.quick-model-btn[aria-expanded="true"] svg.i { transform: rotate(180deg); }
+.quick-model .model-menu { left: auto; right: 0; bottom: calc(100% + 14px); }
 .composer-spacer { flex: 1; min-width: 0; }
 .composer-send {
   width: 36px; height: 36px; flex: none; border-radius: 999px; display: grid; place-items: center;
