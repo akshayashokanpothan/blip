@@ -25,10 +25,10 @@ if (!localStorage.getItem(RESET_FLAG)) {
   wipeDevice();
   localStorage.setItem(RESET_FLAG, '1');
 }
-// The live site runs on this address. Anywhere else (the preview link, Vercel
-// branch builds, localhost) shows a "Preview" badge so test builds are easy to spot.
-const PRODUCTION_HOSTS = ['blip.akshayashokanpothan.com'];
-const IS_PREVIEW = !PRODUCTION_HOSTS.includes(location.hostname);
+// Anywhere but the live address (preview link, Vercel branch builds, localhost)
+// shows a "Preview" badge so test builds are easy to spot.
+// The check itself runs early in index.html (it also swaps the install name and icon).
+const IS_PREVIEW = document.documentElement.dataset.env === 'preview';
 function markPreview() {
   if (!IS_PREVIEW) return;
   document.documentElement.dataset.env = 'preview';
