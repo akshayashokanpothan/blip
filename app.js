@@ -1739,13 +1739,19 @@ function recentlyDismissed() {
 
 function refreshInstallEntries() {
   const show = installSupported();
-  $('#install-settings').hidden = !show;
+  // Settings → Help always offers install, so people who removed the app can get it back.
+  $('#install-settings-label').textContent = isStandalone() ? 'Blip app is installed' : 'Install the Blip app';
   $('#side-install').hidden = !show;
 }
 
 function openInstall() {
-  if (!installSupported()) {
-    toast('Blip is already installed, or this browser can’t install it.');
+  if (isStandalone()) {
+    toast('You’re already using the installed Blip app.');
+    return;
+  }
+  // The browser offers a one-step install: show its confirmation straight away.
+  if (deferredPrompt) {
+    runInstall();
     return;
   }
   const text = $('#install-text');
@@ -1770,8 +1776,9 @@ function openInstall() {
     steps.hidden = false;
     go.hidden = true;
   } else {
-    // Desktop and Android browsers that don't expose the install prompt.
-    text.textContent = 'Look for the install icon in your browser’s address bar, or open the browser menu and choose “Install Blip”.';
+    // The browser isn't offering install right now. Usually Blip is already
+    // installed on this device, or the browser installs from its own menu.
+    text.textContent = 'If Blip is already on this device, open it from your home screen or app list. Otherwise open the browser menu (⋮) and choose “Install app” or “Add to Home screen”.';
     steps.hidden = true;
     go.hidden = true;
   }
@@ -1814,6 +1821,7 @@ function initAccountAndInstall() {
   $('#install-later').addEventListener('click', dismissInstall);
   $('#install-settings').addEventListener('click', openInstall);
   $('#side-install').addEventListener('click', openInstall);
+  refreshInstallEntries();
 
   // Onboarding
   $('#ob-install-go').addEventListener('click', async () => {
