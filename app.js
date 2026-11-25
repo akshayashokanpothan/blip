@@ -1,6 +1,6 @@
 // Blip: voice or text in, a list for today out.
 // Everything lives in localStorage. Parsing uses a local rule-based parser,
-// or the Claude API if you add an API key in settings.
+// or the Claude API if you add an API key in Settings.
 
 const TASKS_KEY = 'blip.tasks.v1';
 const SETTINGS_KEY = 'blip.settings.v1';
@@ -25,6 +25,7 @@ function save() {
 
 // ---------- helpers ----------
 const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
 const esc = (s) => s.replace(/[&<>"']/g, (c) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 }[c]));
@@ -37,12 +38,12 @@ function todayKey(d = new Date()) {
   ].join('-');
 }
 
-function setStatus(msg) {
-  $('#status').textContent = msg;
-}
-
-function syncSend() {
-  $('#send').disabled = !$('#input').value.trim();
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
 function haptic() {
@@ -200,7 +201,7 @@ async function handleInput(text) {
   text = text.trim();
   if (!text) return;
 
-  setStatus('Working…');
+  toast('Working…');
   let actions;
   let warning = '';
 
@@ -216,7 +217,7 @@ async function handleInput(text) {
   }
 
   const log = applyActions(actions);
-  setStatus((log.join(' · ') || 'Nothing to add.') + warning);
+  toast((log.join(' · ') || 'Nothing to add.') + warning);
 }
 
 // ---------- voice ----------
@@ -226,7 +227,7 @@ let listening = false;
 
 function toggleMic() {
   if (!SpeechRec) {
-    setStatus('Voice isn’t supported in this browser. Use the keyboard’s dictation button.');
+    toast('Voice isn’t supported here. Use the keyboard’s dictation button.');
     return;
   }
   if (listening) {
@@ -244,7 +245,7 @@ function toggleMic() {
   recognizer.onstart = () => {
     listening = true;
     $('#mic').classList.add('on');
-    setStatus('Listening… tap the mic again to finish');
+    toast('Listening… tap the mic again to finish');
   };
 
   recognizer.onresult = (e) => {
@@ -255,24 +256,26 @@ function toggleMic() {
       else interim += r[0].transcript;
     }
     $('#input').value = (finalText + interim).trim();
-    syncSend();
   };
 
-  recognizer.onerror = (e) => setStatus(`Mic error: ${e.error}`);
+  recognizer.onerror = (e) => toast(`Mic error: ${e.error}`);
 
+  // Leave the words in the sheet so you can check them, then tap Add.
   recognizer.onend = () => {
     listening = false;
     $('#mic').classList.remove('on');
-    const spoken = $('#input').value.trim();
-    $('#input').value = '';
-    syncSend();
-    if (spoken) handleInput(spoken);
+    if ($('#input').value.trim()) toast('Check the words, then tap Add');
   };
 
   recognizer.start();
 }
 
 // ---------- rendering ----------
+const sortTasks = (a, b) =>
+  (a.done - b.done) ||
+  ((b.priority === 'high') - (a.priority === 'high')) ||
+  (a.created - b.created);
+
 function todayItemHTML(t) {
   return `
     <li class="swipe" data-id="${t.id}">
@@ -295,33 +298,112 @@ function carryItemHTML(t) {
     </li>`;
 }
 
-function render() {
+// Search and filter state for the Home view.
+const ui = { view: 'home', filter: 'all', query: '' };
+
+const matchesQuery = (t) => !ui.query || t.text.toLowerCase().includes(ui.query);
+
+function renderHome() {
   const today = todayKey();
 
-  const todays = tasks
-    .filter((t) => t.date === today)
-    .sort((a, b) =>
-      (a.done - b.done) ||
-      ((b.priority === 'high') - (a.priority === 'high')) ||
-      (a.created - b.created));
+  let list = tasks.filter((t) => t.date === today && matchesQuery(t));
+  if (ui.filter === 'open') list = list.filter((t) => !t.done);
+  if (ui.filter === 'done') list = list.filter((t) => t.done);
+  list.sort(sortTasks);
 
-  const carry = tasks.filter((t) => t.date < today && !t.done);
-
+  $('#greeting').textContent = greeting();
   $('#date').textContent = new Date().toLocaleDateString(undefined, {
     weekday: 'long', month: 'long', day: 'numeric',
   });
 
-  const doneCount = todays.filter((t) => t.done).length;
-  $('#today-head').textContent = todays.length
-    ? `Tasks · ${doneCount} of ${todays.length} done`
-    : 'Tasks';
+  let empty = 'Nothing here yet. Tap + to add what’s on your day.';
+  if (ui.query) empty = `No tasks match “${ui.query}”.`;
+  else if (ui.filter === 'done') empty = 'Nothing finished yet today.';
 
-  $('#today').innerHTML = todays.length
-    ? todays.map(todayItemHTML).join('')
-    : '<li class="empty-row">Nothing yet. Say or type what’s on your day.</li>';
+  $('#today').innerHTML = list.length
+    ? list.map(todayItemHTML).join('')
+    : `<li class="empty-row">${esc(empty)}</li>`;
 
+  const carry = tasks.filter((t) => t.date < today && !t.done && matchesQuery(t));
   $('#carry-section').hidden = carry.length === 0;
   $('#carry').innerHTML = carry.map(carryItemHTML).join('');
+}
+
+function renderDone() {
+  const list = tasks
+    .filter((t) => t.done && matchesQuery(t))
+    .sort((a, b) => b.created - a.created);
+
+  $('#done').innerHTML = list.length
+    ? list.map(todayItemHTML).join('')
+    : '<li class="empty-row">Finished tasks will show here.</li>';
+}
+
+function renderSettings() {
+  $('#api-key').value = settings.apiKey || '';
+  $('#mode-hint').textContent = settings.apiKey
+    ? 'AI parsing is on. Claude Haiku reads your notes.'
+    : 'Offline parsing is on. Add a key for smarter parsing.';
+}
+
+function render() {
+  renderHome();
+  renderDone();
+}
+
+// ---------- themes ----------
+const THEMES = ['classic', 'modern', 'claude'];
+
+function setTheme(name, quiet = false) {
+  if (!THEMES.includes(name)) name = 'modern';
+  document.documentElement.dataset.theme = name;
+  if (settings.theme !== name) {
+    settings.theme = name;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }
+  markTheme();
+  if (!quiet) toast(`Theme: ${name[0].toUpperCase()}${name.slice(1)}`);
+}
+
+function markTheme() {
+  for (const b of $$('[data-theme-pick]')) {
+    b.setAttribute('aria-pressed', String(b.dataset.themePick === settings.theme));
+  }
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+// ---------- views, drawer, sheet ----------
+function showView(name) {
+  ui.view = name;
+  for (const v of $$('.view')) v.hidden = v.id !== `view-${name}`;
+  for (const t of $$('.tab')) t.classList.toggle('on', t.dataset.tab === name);
+  if (name === 'done') renderDone();
+  if (name === 'settings') renderSettings();
+  window.scrollTo({ top: 0 });
+}
+
+function openDrawer() {
+  $('#drawer').classList.add('open');
+  $('#scrim').classList.add('show');
+}
+
+function openSheet() {
+  $('#sheet').classList.add('open');
+  $('#scrim').classList.add('show');
+  setTimeout(() => $('#input').focus(), 300);
+}
+
+function closeAll() {
+  $('#drawer').classList.remove('open');
+  $('#sheet').classList.remove('open');
+  $('#scrim').classList.remove('show');
+  $('#input').blur();
 }
 
 // ---------- swipe to delete ----------
@@ -391,6 +473,8 @@ function finishEdit(el) {
 }
 
 // ---------- events ----------
+
+// Row actions: toggle, edit, delete, move.
 document.body.addEventListener('click', (e) => {
   if (suppressClick) {
     suppressClick = false;
@@ -400,7 +484,7 @@ document.body.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
 
   // Tapping anywhere else closes open swipe rows.
-  document.querySelectorAll('.row.open').forEach((r) => {
+  $$('.row.open').forEach((r) => {
     if (!el || el.closest('.swipe') !== r.closest('.swipe')) r.classList.remove('open');
   });
 
@@ -430,27 +514,73 @@ document.body.addEventListener('click', (e) => {
   render();
 });
 
-$('#form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const v = $('#input').value;
+// Bottom tabs.
+for (const tab of $$('.tab')) {
+  tab.addEventListener('click', () => showView(tab.dataset.tab));
+}
+
+// Segmented filter on Home.
+for (const seg of $$('.seg')) {
+  seg.addEventListener('click', () => {
+    ui.filter = seg.dataset.filter;
+    for (const s of $$('.seg')) s.classList.toggle('on', s === seg);
+    renderHome();
+  });
+}
+
+// Search.
+$('#search').addEventListener('input', (e) => {
+  ui.query = e.target.value.trim().toLowerCase();
+  render();
+});
+
+// Floating add button and add sheet.
+$('#fab').addEventListener('click', openSheet);
+$('#mic').addEventListener('click', toggleMic);
+$('#add-btn').addEventListener('click', () => {
+  const v = $('#input').value.trim();
+  if (!v) {
+    toast('Type or say something first');
+    return;
+  }
   $('#input').value = '';
-  syncSend();
+  closeAll();
   handleInput(v);
 });
 
-$('#input').addEventListener('input', syncSend);
-$('#mic').addEventListener('click', toggleMic);
+// Menu drawer.
+$('#menu').addEventListener('click', openDrawer);
+$('#scrim').addEventListener('click', closeAll);
 
-$('#settings').addEventListener('click', () => {
-  const key = prompt(
-    'Optional: Anthropic API key for smarter parsing. Stored only on this device. Leave blank to use the offline parser.',
-    settings.apiKey || '',
-  );
-  if (key === null) return;
-  settings.apiKey = key.trim();
+for (const item of $$('.drawer-item')) {
+  item.addEventListener('click', () => {
+    const action = item.dataset.drawer;
+    closeAll();
+    if (action === 'settings' || action === 'themes') showView('settings');
+    else toast('Coming soon');
+  });
+}
+
+// Settings view.
+$('#save-key').addEventListener('click', () => {
+  settings.apiKey = $('#api-key').value.trim();
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  setStatus(settings.apiKey ? 'AI parsing is on' : 'Offline parser is on');
+  renderSettings();
+  toast(settings.apiKey ? 'API key saved on this device' : 'Offline parsing is on');
 });
+
+$('#clear-data').addEventListener('click', () => {
+  if (!confirm('Delete all tasks on this device?')) return;
+  tasks = [];
+  save();
+  render();
+  toast('All tasks deleted');
+});
+
+// Theme picker.
+for (const b of $$('[data-theme-pick]')) {
+  b.addEventListener('click', () => setTheme(b.dataset.themePick));
+}
 
 // Refresh once a minute so the date rolls over at midnight.
 // Skip while a task is being edited so the edit isn't wiped.
@@ -458,8 +588,9 @@ setInterval(() => {
   if (!document.querySelector('[contenteditable="true"]')) render();
 }, 60_000);
 
+setTheme(settings.theme || 'modern', true);
+showView('home');
 render();
-syncSend();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');
