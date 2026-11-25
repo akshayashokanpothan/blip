@@ -1,6 +1,6 @@
 // Network-first with cache fallback, so Blip opens offline.
 // Bump CACHE when you change app files so old copies are dropped.
-const CACHE = 'blip-v11';
+const CACHE = 'blip-v12';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icon.svg', 'assets/brand/brand-tokens.css', 'assets/logo/symbol-color.svg', 'icons/app-icon-192.png', 'icons/app-icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'config.js'];
 
 self.addEventListener('install', (e) => {
@@ -30,4 +30,22 @@ self.addEventListener('fetch', (e) => {
       })
       .catch(() => caches.match(e.request))
   );
+});
+
+// Tapping a reminder focuses Blip (or opens it) on that task.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const taskId = e.notification.data?.taskId;
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const win = wins.find((w) => new URL(w.url).origin === self.location.origin);
+    if (win) {
+      await win.focus();
+      if (taskId) win.postMessage({ type: 'open-task', taskId });
+      return;
+    }
+    const url = new URL('./', self.registration.scope);
+    if (taskId) url.searchParams.set('task', taskId);
+    await self.clients.openWindow(url.href);
+  })());
 });

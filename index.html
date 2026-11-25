@@ -298,7 +298,7 @@
               <button type="button" data-prio="high">High</button>
             </div>
           </div>
-          <label class="setting-row"><span class="grow"><strong>Reminder</strong><span class="hint">Shows while Blip is open</span></span>
+          <label class="setting-row"><span class="grow"><strong>Reminder</strong><span class="hint">Notifies you 10 minutes before</span></span>
             <span class="switch"><input id="tf-reminder" type="checkbox" aria-label="Reminder"><span class="track"></span></span>
           </label>
           <label class="setting-row"><span class="grow"><strong>Repeat</strong></span>
@@ -460,6 +460,10 @@
         <div class="setting-row">
           <span class="grow"><strong>Reminders and notifications</strong><span id="notif-hint" class="hint"></span></span>
           <button id="notif-btn" class="pill-btn" type="button">Allow</button>
+        </div>
+        <div id="notif-test-row" class="setting-row" hidden>
+          <span class="grow"><strong>Test reminder</strong><span class="hint">Sends a sample notification now</span></span>
+          <button id="notif-test" class="pill-btn" type="button">Send test</button>
         </div>
         <button id="install-settings" class="row-link" type="button" hidden>
           <span>Install Blip app</span>

@@ -28,6 +28,7 @@ Host the folder on any static host (GitHub Pages, Netlify, Vercel, Cloudflare Pa
 - **Edit:** tap the task text, type, press return.
 - **Delete:** swipe left, then tap Delete.
 - **Update by voice or text:** "done with milk", "delete the call", "rename gym to gym at 6".
+- **Reminders:** a task with a time and its reminder on sends a notification 10 minutes before, showing the task and its time. Allow notifications in Settings, and use "Send test" to check it works. Tapping the notification opens the task.
 - **Unfinished tasks** from earlier days appear in their own section with a "Move to today" button.
 
 ## Parsing modes
@@ -53,6 +54,7 @@ Host the folder on any static host (GitHub Pages, Netlify, Vercel, Cloudflare Pa
 
 ## Known gaps
 
+- Reminders fire while Blip is open or in the background. If the phone has fully closed the app, the reminder shows the next time Blip opens (up to 30 minutes late), because waking a closed app needs a push server.
 - One device only. No sync between phone and laptop yet.
 - iOS home-screen icons prefer a 180px PNG (`apple-touch-icon`). Generate one from `icon.svg` if the icon looks off.
 - Chrome's install prompt wants 192px and 512px PNG icons.

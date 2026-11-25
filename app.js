@@ -43,7 +43,10 @@ const settings = loadJSON(SETTINGS_KEY, {});
 if (settings.theme === 'default' || settings.theme === 'green') settings.theme = 'light';
 if (!THEMES.includes(settings.theme)) settings.theme = 'light';
 
-function save() { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); }
+function save() {
+  localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+  if (typeof scheduleNextReminder === 'function') scheduleNextReminder();
+}
 function saveNotes() { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); }
 function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
 
@@ -810,6 +813,7 @@ function renderSettings() {
 function renderNotifButton() {
   const btn = $('#notif-btn');
   const hint = $('#notif-hint');
+  $('#notif-test-row').hidden = true;
   if (!('Notification' in window)) {
     btn.disabled = true;
     btn.textContent = 'Unavailable';
@@ -817,7 +821,8 @@ function renderNotifButton() {
   } else if (Notification.permission === 'granted') {
     btn.disabled = true;
     btn.textContent = 'On';
-    hint.textContent = 'Reminders show while Blip is open.';
+    hint.textContent = 'You get a notification 10 minutes before each timed task.';
+    $('#notif-test-row').hidden = false;
   } else if (Notification.permission === 'denied') {
     btn.disabled = true;
     btn.textContent = 'Blocked';
@@ -825,7 +830,7 @@ function renderNotifButton() {
   } else {
     btn.disabled = false;
     btn.textContent = 'Allow';
-    hint.textContent = 'Reminders show while Blip is open.';
+    hint.textContent = 'Allow this to get a notification 10 minutes before each timed task.';
   }
 }
 
@@ -848,18 +853,50 @@ function renderView(name) {
 }
 
 // ---------- reminders ----------
-// Reminders fire while Blip is open. Closed-app notifications need a server.
+// Each timed task with its reminder on gets a notification 10 minutes before
+// its time. Timers run while Blip is open or in the background; a phone that
+// has fully closed the app needs a push server to wake it.
+const REMIND_BEFORE_MS = 10 * 60 * 1000;
+// Reminders more than this late (the app was closed) are skipped as stale.
+const REMIND_GRACE_MS = 30 * 60 * 1000;
+let reminderTimer = null;
+
+const remindAt = (t) => {
+  const due = dueAt(t);
+  return due === null ? null : due - REMIND_BEFORE_MS;
+};
+
+function reminderBody(t, now = Date.now()) {
+  const due = dueAt(t);
+  const mins = Math.round((due - now) / 60000);
+  const day = t.date === todayKey() ? 'Today' : dateLabel(t.date);
+  const when = `${day} at ${fmtTime(t.time)}`;
+  if (mins <= 0) return `${when} · now`;
+  return `${when} · in ${mins} min`;
+}
+
 function notify(t) {
-  const body = `${t.text} · ${whenText(t)}`;
-  toast(`Reminder: ${t.text}`);
+  const body = reminderBody(t);
+  toast(`${t.text} · ${fmtTime(t.time)}`);
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  const opts = { body, icon: 'icons/app-icon-192.png', tag: t.id };
-  if (navigator.serviceWorker?.ready) {
+  const opts = {
+    body,
+    icon: 'icons/app-icon-192.png',
+    badge: 'icons/app-icon-192.png',
+    tag: `blip-${t.id}`,
+    renotify: true,
+    requireInteraction: true,
+    vibrate: [200, 100, 200],
+    timestamp: dueAt(t),
+    data: { taskId: t.id },
+  };
+  const fallback = () => { try { new Notification(t.text, opts); } catch { /* page-level notifications unsupported */ } };
+  if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready
-      .then((reg) => reg.showNotification('Blip', opts))
-      .catch(() => new Notification('Blip', opts));
+      .then((reg) => reg.showNotification(t.text, opts))
+      .catch(fallback);
   } else {
-    new Notification('Blip', opts);
+    fallback();
   }
 }
 
@@ -868,14 +905,30 @@ function checkReminders() {
   let changed = false;
   for (const t of tasks) {
     if (!t.reminder || t.done || t.notified) continue;
-    const due = dueAt(t);
-    if (due === null || now < due) continue;
+    const at = remindAt(t);
+    if (at === null || now < at) continue;
     t.notified = true;
     changed = true;
-    // Only remind for things due in the last six hours; older ones are stale.
-    if (now - due < 6 * 3600e3) notify(t);
+    if (now - dueAt(t) < REMIND_GRACE_MS) notify(t);
   }
   if (changed) save();
+  scheduleNextReminder();
+}
+
+// Arms one timer for the soonest pending reminder, so it fires on the minute
+// instead of waiting for the 30-second sweep.
+function scheduleNextReminder() {
+  clearTimeout(reminderTimer);
+  let next = Infinity;
+  for (const t of tasks) {
+    if (!t.reminder || t.done || t.notified) continue;
+    const at = remindAt(t);
+    if (at !== null && at < next) next = at;
+  }
+  if (next === Infinity) return;
+  // Browsers cap timers near 24.8 days; re-arm at most daily.
+  const delay = Math.min(Math.max(next - Date.now(), 0), 24 * 3600e3);
+  reminderTimer = setTimeout(checkReminders, delay);
 }
 
 // ---------- account and onboarding ----------
@@ -1634,6 +1687,31 @@ $('#clear-data').addEventListener('click', () => {
 });
 
 $('#notif-btn').addEventListener('click', askNotifications);
+$('#notif-test').addEventListener('click', () => {
+  const at = new Date(Date.now() + REMIND_BEFORE_MS);
+  notify({
+    id: 'test',
+    text: 'Test reminder',
+    date: todayKey(at),
+    time: `${pad(at.getHours())}:${pad(at.getMinutes())}`,
+  });
+});
+
+// Catch up as soon as the app comes back to the foreground.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkReminders();
+});
+
+// Tapping a notification opens that task.
+function openTaskFromNotification(id) {
+  if (!tasks.some((x) => x.id === id)) return;
+  editingId = id;
+  ui.backTo = 'home';
+  showView('task');
+}
+navigator.serviceWorker?.addEventListener('message', (e) => {
+  if (e.data?.type === 'open-task') openTaskFromNotification(e.data.taskId);
+});
 
 // Keep the date and reminders current. Skip re-rendering while typing, and
 // on the detail and note screens, where a re-render would wipe unsaved edits.
@@ -1652,6 +1730,13 @@ initAccountAndInstall();
 initAuth();
 initDevice();
 checkReminders();
+{
+  const openId = new URLSearchParams(location.search).get('task');
+  if (openId) {
+    history.replaceState(null, '', location.pathname);
+    openTaskFromNotification(openId);
+  }
+}
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');
