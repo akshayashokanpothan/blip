@@ -685,7 +685,7 @@ function initDevice() {
 }
 
 // ---------- themes ----------
-const THEMES = ['green', 'classic', 'modern', 'claude'];
+const THEMES = ['green', 'classic', 'modern', 'claude', 'meld'];
 
 function setTheme(name, quiet = false) {
   if (!THEMES.includes(name)) name = 'green';

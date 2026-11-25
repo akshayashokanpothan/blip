@@ -99,6 +99,32 @@
   --fab-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
+/* Meld: inspired by the Meld design system (IDEO). Light-first, neutral
+   surfaces, a single pink-magenta brand accent (#BC4989), Space Grotesk
+   throughout, and 8px-grid spacing. Surfaces and borders are derived in the
+   same spirit; the Meld site only publishes the primary and neutral-950. */
+[data-theme="meld"] {
+  --bg: #F7F5F7;
+  --card: #FFFFFF;
+  --ink: #171717;
+  --muted: #6B6670;
+  --line: #ECE7EC;
+  --border: #D3CAD2;
+  --pill: #F3E4EE;
+  --fab: #BC4989;
+  --fab-ink: #FFFFFF;
+  --accent: #BC4989;
+  --done: #BC4989;
+  --red: #B42318;
+  --font: "Space Grotesk", Arial, sans-serif;
+  --display: var(--font);
+  --brand-weight: 700;
+  --r-card: 16px;
+  --r-field: 12px;
+  --shadow: 0 1px 2px rgba(23, 23, 23, 0.05);
+  --fab-shadow: 0 10px 24px rgba(188, 73, 137, 0.3);
+}
+
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
 
@@ -447,6 +473,7 @@ main {
 .swatch.classic { background: linear-gradient(135deg, #F2F2F7 50%, #007AFF 50%); }
 .swatch.modern  { background: linear-gradient(135deg, #EEEEF0 50%, #161618 50%); }
 .swatch.claude  { background: linear-gradient(135deg, #262624 50%, #D97757 50%); }
+.swatch.meld    { background: linear-gradient(135deg, #F7F5F7 50%, #BC4989 50%); }
 
 /* ---------- floating add button ---------- */
 .fab {
