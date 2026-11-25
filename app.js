@@ -1536,8 +1536,40 @@ function closeOnboarding(justFinished = false) {
     showView('home');
     const first = displayName().split(/\s+/)[0];
     toast(first ? `You’re all set, ${first}.` : 'You’re all set.');
+    // First time on this device: play the product tour once. It can be closed.
+    if (!onboard.tour) setTimeout(openTour, 500);
   }
 }
+
+// ---------- product tour ----------
+// Phones get the portrait video, larger screens the landscape one.
+const tourSrc = () => (mqDesktopTour.matches ? 'tour/blip-tour-desktop.mp4' : 'tour/blip-tour-phone.mp4');
+const mqDesktopTour = window.matchMedia('(min-width: 1024px)');
+
+function openTour() {
+  const v = $('#tour-video');
+  const src = tourSrc();
+  if (v.getAttribute('src') !== src) v.setAttribute('src', src);
+  v.currentTime = 0;
+  $('#tour').hidden = false;
+  onboard.tour = true;
+  saveOnboard();
+  // Sound needs a recent tap; if the browser blocks it, the play button stays.
+  v.play().catch(() => {});
+  setTimeout(() => $('#tour-close').focus(), 50);
+}
+
+function closeTour() {
+  const v = $('#tour-video');
+  v.pause();
+  $('#tour').hidden = true;
+}
+
+$('#tour-close').addEventListener('click', closeTour);
+$('#tour-done').addEventListener('click', closeTour);
+$('#tour-video').addEventListener('ended', () => { $('#tour-done').focus(); });
+$('#tour').addEventListener('click', (e) => { if (e.target.id === 'tour') closeTour(); });
+$('#tour-row').addEventListener('click', openTour);
 
 // Kept for callers that just want the sign-in screen (sign out, Settings).
 function showOnboarding() {
@@ -2084,6 +2116,7 @@ function initDevice() {
   // Desktop shortcuts. They never fire while typing.
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (!$('#tour').hidden) { closeTour(); return; }
       if (!$('#capture').hidden) closeCapture();
       closeAll();
       return;

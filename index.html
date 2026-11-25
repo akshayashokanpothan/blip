@@ -496,6 +496,14 @@
         <button id="signout" class="row-link" type="button">Sign in or create account</button>
       </div>
 
+      <p class="section-label">Help</p>
+      <div class="settings-group">
+        <button id="tour-row" class="row-link" type="button">
+          <span>How to use Blip</span>
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+
       <p class="section-label">About</p>
       <div class="settings-group">
         <div class="setting-row" style="border-top:0"><span>Blip</span><span class="muted">Version 2.0.0</span></div>
@@ -725,6 +733,17 @@
   </section>
 
   <!-- Install assistant -->
+  <section id="tour" class="tour" hidden role="dialog" aria-modal="true" aria-labelledby="tour-title">
+    <div class="tour-card">
+      <div class="tour-head">
+        <h2 id="tour-title">How Blip works</h2>
+        <button id="tour-close" class="icon-btn" type="button" aria-label="Close tour"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <video id="tour-video" class="tour-video" controls playsinline preload="metadata"></video>
+      <button id="tour-done" class="btn primary" type="button">Got it</button>
+    </div>
+  </section>
+
   <section id="install-sheet" class="sheet" aria-label="Install Blip">
     <div class="grab" aria-hidden="true"></div>
     <div class="install-body">
