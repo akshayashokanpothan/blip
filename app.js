@@ -10,7 +10,8 @@ const PROFILE_KEY = 'blip.profile.v1';
 const INSTALL_DISMISS_KEY = 'blip.installDismissed.v1';
 const SPLASH_KEY = 'blip.splashShown';
 const MODEL = 'claude-haiku-5-5';
-const THEMES = ['default', 'classic', 'modern', 'claude', 'meld'];
+// Only one theme for now. More are coming later.
+const THEME = 'default';
 
 // ---------- storage ----------
 function loadJSON(key, fallback) {
@@ -40,7 +41,7 @@ function normalizeTask(t) {
 let tasks = loadJSON(TASKS_KEY, []).map(normalizeTask);
 let notes = loadJSON(NOTES_KEY, []);
 const settings = loadJSON(SETTINGS_KEY, {});
-if (settings.theme === 'green') settings.theme = 'default';
+settings.theme = THEME; // every older theme choice maps to the one theme
 
 function save() { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); }
 function saveNotes() { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); }
@@ -802,7 +803,6 @@ function renderSettings() {
   $('#mode-hint').textContent = settings.apiKey
     ? 'AI parsing is on. Claude Haiku reads what you say or type.'
     : 'Offline parsing is on. Add a key for smarter parsing.';
-  markTheme();
   renderNotifButton();
 }
 
@@ -891,12 +891,13 @@ function setProfile(p) {
   renderProfile();
 }
 
+const PERSON_ICON = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.4-3.6 4.2-5.5 7.5-5.5s6.1 1.9 7.5 5.5"/></svg>';
+
 function renderProfile() {
-  const img = '<img src="assets/logo/symbol-color.svg" alt="">';
-  const photo = profile?.avatar ? `<img src="${esc(profile.avatar)}" alt="">` : img;
-  const initial = (profile?.name || 'B').trim().charAt(0).toUpperCase();
+  const photo = profile?.avatar ? `<img src="${esc(profile.avatar)}" alt="">` : PERSON_ICON;
+  const initial = (profile?.name || '').trim().charAt(0).toUpperCase();
   $('#avatar').innerHTML = photo;
-  $('#settings-avatar').innerHTML = profile?.avatar ? photo : (profile ? esc(initial) : img);
+  $('#settings-avatar').innerHTML = profile?.avatar ? photo : (initial || PERSON_ICON);
   $('#settings-name').textContent = profile?.name || 'Blip';
   $('#settings-sub').textContent = profile?.email || 'Say it. Get it done.';
   $('#account-line').textContent = !profile
@@ -1274,21 +1275,11 @@ function initDevice() {
 }
 
 // ---------- themes ----------
-function setTheme(name, quiet = false) {
-  if (name === 'green') name = 'default';
-  if (!THEMES.includes(name)) name = 'default';
-  root.dataset.theme = name;
-  if (settings.theme !== name) {
-    settings.theme = name;
+function setTheme() {
+  root.dataset.theme = THEME;
+  if (settings.theme !== THEME) {
+    settings.theme = THEME;
     saveSettings();
-  }
-  markTheme();
-  if (!quiet) toast(`Theme: ${name[0].toUpperCase()}${name.slice(1)}`);
-}
-
-function markTheme() {
-  for (const b of $$('[data-theme-pick]')) {
-    b.setAttribute('aria-pressed', String(b.dataset.themePick === settings.theme));
   }
 }
 
@@ -1600,13 +1591,6 @@ $('#clear-data').addEventListener('click', () => {
 
 $('#notif-btn').addEventListener('click', askNotifications);
 
-for (const b of $$('[data-theme-pick]')) {
-  b.addEventListener('click', () => {
-    setTheme(b.dataset.themePick);
-    renderSettings();
-  });
-}
-
 // Keep the date and reminders current. Skip re-rendering while typing, and
 // on the detail and note screens, where a re-render would wipe unsaved edits.
 setInterval(() => {
@@ -1616,7 +1600,7 @@ setInterval(() => {
   if (!typing && !editing) render();
 }, 30_000);
 
-setTheme(settings.theme || 'default', true);
+setTheme();
 runSplash();
 showView('home');
 render();

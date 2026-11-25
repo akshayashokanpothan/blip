@@ -1,6 +1,5 @@
-/* Blip themes. Each theme is a set of CSS variables on <html data-theme="...">.
-   - default: the Blip mobile theme (Blip Green palette, Manrope + Inter). Fresh installs use this.
-   - classic, modern, claude, meld: the other themes, kept as before. */
+/* Blip theme: one set of CSS variables on <html data-theme="default">.
+   The Blip Green palette with Manrope and Inter. More themes come later. */
 
 @import url("assets/brand/brand-tokens.css");
 
@@ -40,96 +39,6 @@
   --ease: var(--blip-motion-ease);
 }
 
-[data-theme="classic"] {
-  --bg: #F2F2F7;
-  --card: #FFFFFF;
-  --ink: #000000;
-  --muted: #8E8E93;
-  --line: #E5E5EA;
-  --border: #C7C7CC;
-  --pill: #E3E3E8;
-  --fab: #007AFF;
-  --fab-ink: #FFFFFF;
-  --accent: #007AFF;
-  --done: #34C759;
-  --red: #FF3B30;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
-  --display: var(--font);
-  --brand-weight: 600;
-  --r-card: 12px;
-  --r-field: 10px;
-  --shadow: none;
-  --fab-shadow: 0 4px 12px rgba(0, 122, 255, 0.35);
-}
-
-[data-theme="modern"] {
-  --bg: #EEEEF0;
-  --card: #FFFFFF;
-  --ink: #111113;
-  --muted: #8A8A8F;
-  --line: #E6E6EA;
-  --border: #C9C9CF;
-  --pill: #DCDCE1;
-  --fab: #161618;
-  --fab-ink: #FFFFFF;
-  --accent: #B388FF;
-  --done: #111113;
-  --red: #FF3B30;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", system-ui, sans-serif;
-  --display: var(--font);
-  --brand-weight: 700;
-  --r-card: 22px;
-  --r-field: 20px;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-  --fab-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
-}
-
-[data-theme="claude"] {
-  --bg: #262624;
-  --card: #30302E;
-  --ink: #F0EEE6;
-  --muted: #A5A29A;
-  --line: #3E3D3A;
-  --border: #4A4944;
-  --pill: #3A3936;
-  --fab: #F0EEE6;
-  --fab-ink: #262624;
-  --accent: #D97757;
-  --done: #D97757;
-  --red: #E5604A;
-  --font: ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", "Segoe UI", sans-serif;
-  --display: "Tiempos Text", "Iowan Old Style", Georgia, "Times New Roman", serif;
-  --brand-weight: 400;
-  --r-card: 18px;
-  --r-field: 22px;
-  --shadow: none;
-  --fab-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-}
-
-/* Meld: inspired by the Meld design system (IDEO). Surfaces and borders are
-   derived; the Meld site only publishes the primary and neutral-950. */
-[data-theme="meld"] {
-  --bg: #F7F5F7;
-  --card: #FFFFFF;
-  --ink: #171717;
-  --muted: #6B6670;
-  --line: #ECE7EC;
-  --border: #D3CAD2;
-  --pill: #F3E4EE;
-  --fab: #BC4989;
-  --fab-ink: #FFFFFF;
-  --accent: #BC4989;
-  --done: #BC4989;
-  --red: #B42318;
-  --font: "Space Grotesk", Arial, sans-serif;
-  --display: var(--font);
-  --brand-weight: 700;
-  --r-card: 16px;
-  --r-field: 12px;
-  --shadow: 0 1px 2px rgba(23, 23, 23, 0.05);
-  --fab-shadow: 0 10px 24px rgba(188, 73, 137, 0.3);
-}
-
 /* ---------- base ---------- */
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
@@ -160,8 +69,6 @@ svg.i { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-widt
 .logo { display: block; line-height: 0; }
 .logo svg { display: block; height: 30px; width: auto; }
 .logo-dark { display: none; }
-[data-theme="claude"] .logo-light { display: none; }
-[data-theme="claude"] .logo-dark { display: block; }
 
 /* ---------- splash ---------- */
 .splash {
@@ -189,10 +96,9 @@ svg.i { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-widt
 }
 .brand { display: flex; align-items: center; min-width: 0; }
 .avatar-btn {
-  width: 40px; height: 40px; border-radius: 999px; overflow: hidden;
-  background: var(--pill); display: grid; place-items: center;
-  border: 1px solid var(--line);
+  width: 40px; height: 40px; display: grid; place-items: center; color: var(--ink);
 }
+.avatar-btn svg.i { width: 26px; height: 26px; }
 
 .avatar { width: 52px; height: 52px; border-radius: 999px; background: var(--pill); display: grid; place-items: center; overflow: hidden; flex: none; color: var(--fab); font-family: var(--display); font-weight: 600; font-size: 20px; }
 .avatar img, .avatar-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -268,7 +174,7 @@ main {
 .task.done .task-title { color: var(--muted); text-decoration: line-through; }
 .task-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; color: var(--muted); }
 .task-meta svg.i { width: 14px; height: 14px; }
-.tag-high { font-size: 12px; font-weight: var(--sub-weight); color: #7A4E0C; background: #F6EBD3; padding: 2px 8px; border-radius: 999px; }
+.tag-high { font-size: 12px; font-weight: var(--sub-weight); color: var(--fab); background: var(--pill); padding: 2px 8px; border-radius: 999px; }
 .pill-btn.sm { height: 30px; padding: 0 12px; font-size: 13px; }
 .x-del { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 999px; color: var(--muted); }
 .x-del:hover { color: var(--red); }
@@ -280,7 +186,6 @@ main {
 .quick-add { display: none; }
 .hero { padding: 6px 4px 0; }
 .hero-kicker { margin: 0 0 10px; font-size: 14px; color: var(--muted); }
-.spark { width: 26px; height: 26px; color: var(--accent); }
 .hero-title {
   margin: 12px 0 10px; font-family: var(--display); font-weight: 700;
   font-size: 40px; line-height: 1.08; letter-spacing: -0.03em;
@@ -572,10 +477,10 @@ main {
 .theme-opt[aria-pressed="true"] { border-color: var(--accent); }
 .swatch { width: 100%; height: 44px; border-radius: var(--r-sm); border: 1px solid var(--line); }
 .swatch.default { background: linear-gradient(135deg, #F8FAF7 50%, #1B3B2B 50%); }
-.swatch.classic { background: linear-gradient(135deg, #F2F2F7 50%, #007AFF 50%); }
-.swatch.modern  { background: linear-gradient(135deg, #EEEEF0 50%, #161618 50%); }
-.swatch.claude  { background: linear-gradient(135deg, #262624 50%, #D97757 50%); }
-.swatch.meld    { background: linear-gradient(135deg, #F7F5F7 50%, #BC4989 50%); }
+.theme-static { display: flex; align-items: center; gap: 14px; padding: 14px 16px 16px; }
+.theme-static .swatch { width: 56px; height: 40px; flex: none; }
+.theme-static strong { display: block; font-size: 16px; font-weight: 500; }
+.theme-static span { display: block; font-size: 14px; color: var(--muted); margin-top: 2px; }
 
 /* ---------- tablet ---------- */
 @media (min-width: 768px) and (max-width: 1023px) {
