@@ -2021,7 +2021,7 @@ function closeOnboarding(justFinished = false) {
 
 // ---------- product tour ----------
 // Phones get the portrait video, larger screens the landscape one.
-const tourSrc = () => (mqDesktopTour.matches ? 'tour/blip-tour-desktop.mp4' : 'tour/blip-tour-phone.mp4');
+const tourSrc = () => (mqDesktopTour.matches ? 'tour/blip-tour-desktop.mp4?v=2' : 'tour/blip-tour-phone.mp4?v=2');
 const mqDesktopTour = window.matchMedia('(min-width: 1024px)');
 
 function openTour() {
