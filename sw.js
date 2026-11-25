@@ -1,6 +1,6 @@
 // Network-first with cache fallback, so Blip opens offline.
 // Bump CACHE when you change app files so old copies are dropped.
-const CACHE = 'blip-v50';
+const CACHE = 'blip-v51';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icon.svg', 'assets/brand/brand-tokens.css', 'assets/logo/symbol-color.svg', 'icons/app-icon-192.png', 'icons/app-icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'config.js', 'sync.js', 'avatars.js', 'headlines.js', 'reminders.js'];
 
 self.addEventListener('install', (e) => {
