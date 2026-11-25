@@ -5,7 +5,7 @@
 // v2: when you sign in (Supabase keys in config.js), sync.js also keeps tasks,
 // notes and profile settings in step across your devices.
 
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 
 const TASKS_KEY = 'blip.tasks.v1';
 const NOTES_KEY = 'blip.notes.v1';
@@ -1060,7 +1060,8 @@ function countOpen() {
   const today = todayKey();
   const prev = loadJSON(VISITS_KEY, null);
   if (!prev) {
-    visits.firstEver = true;
+    // People updating from an older Blip already have tasks or notes; they aren't new.
+    visits.firstEver = !loadJSON(TASKS_KEY, []).length && !loadJSON(NOTES_KEY, []).length;
     visits.daysAway = 0;
     visits.opensToday = 1;
   } else {
