@@ -1047,6 +1047,59 @@ function renderHome() {
   $('#stat-carry').textContent = tasks.filter((t) => t.date < today && !t.done).length;
   const first = displayName().split(/\s+/)[0];
   $('#greeting').textContent = `${greeting()}${first ? `, ${first}` : ''} · ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`;
+  renderHeadline(todays, doneCount);
+}
+
+// ---------- home headline ----------
+// Counts app opens so the headline can tell a first visit, a return after a
+// break, and a busy day apart. Kept on this device only.
+const VISITS_KEY = 'blip.visits.v1';
+const visits = { firstEver: false, daysAway: 0, opensToday: 1 };
+function countOpen() {
+  const now = Date.now();
+  const today = todayKey();
+  const prev = loadJSON(VISITS_KEY, null);
+  if (!prev) {
+    visits.firstEver = true;
+    visits.daysAway = 0;
+    visits.opensToday = 1;
+  } else {
+    visits.daysAway = Math.floor((now - (prev.lastSeen || now)) / 864e5);
+    visits.opensToday = prev.lastDay === today ? (prev.opens || 0) + 1 : 1;
+  }
+  localStorage.setItem(VISITS_KEY, JSON.stringify({ first: prev?.first || now, lastDay: today, lastSeen: now, opens: visits.opensToday }));
+}
+countOpen();
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { hiddenAt = Date.now(); return; }
+  // Coming back after 10 minutes away counts as opening the app again.
+  if (hiddenAt && Date.now() - hiddenAt > 10 * 60e3) {
+    visits.firstEver = false;
+    countOpen();
+    if (ui.view === 'home') renderHome();
+  }
+});
+
+function renderHeadline(todays, doneCount) {
+  const nowHM = `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;
+  const open = todays.filter((t) => !t.done);
+  const timed = open.filter((t) => t.time).sort((a, b) => a.time.localeCompare(b.time));
+  const nextT = timed.find((t) => t.time >= nowHM) || (timed.length ? null : open[0]) || null;
+  const short = (s) => (s.length > 42 ? `${s.slice(0, 40).trim()}…` : s);
+  const h = homeHeadline({
+    now: new Date(),
+    role: settings.role || '',
+    name: displayName(),
+    total: todays.length,
+    done: doneCount,
+    carry: tasks.filter((t) => t.date < todayKey() && !t.done).length,
+    next: nextT ? { text: short(nextT.text), time: fmtTime(nextT.time) } : null,
+    visits,
+  });
+  $('#hero-title').innerHTML = `${esc(h.title[0])}<br>${esc(h.title[1])}`;
+  $('#hero-copy').textContent = h.copy;
+  $('#hero-title').dataset.key = h.key;
 }
 
 function renderTasks() {
