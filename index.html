@@ -219,6 +219,10 @@
       <div class="home-layout">
         <div class="home-main">
           <form id="quick-add" class="quick-add" autocomplete="off">
+            <div class="model-pick plus-pick">
+              <button id="quick-plus" class="quick-plus" type="button" aria-label="Shortcuts" title="Shortcuts" aria-haspopup="menu" aria-expanded="false"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+              <ul class="model-menu plus-menu" role="menu" aria-label="Shortcuts" hidden></ul>
+            </div>
             <input id="quick-input" type="text" placeholder="Add a task, e.g. call mom tomorrow at 6 pm" aria-label="Add a task">
             <kbd class="kbd" title="Press N to focus">N</kbd>
             <div class="model-pick quick-model">
@@ -250,7 +254,10 @@
           <form id="home-composer" class="composer" autocomplete="off">
             <textarea id="composer-input" rows="1" placeholder="Or type a task…" aria-label="Type a task"></textarea>
             <div class="composer-bar">
-              <button id="composer-plus" class="composer-plus" type="button" aria-label="Start typing a task" title="Type a task">+</button>
+              <div class="model-pick plus-pick">
+                <button id="composer-plus" class="composer-plus" type="button" aria-label="Shortcuts" title="Shortcuts" aria-haspopup="menu" aria-expanded="false">+</button>
+                <ul class="model-menu plus-menu" role="menu" aria-label="Shortcuts" hidden></ul>
+              </div>
               <div class="model-pick">
                 <button id="composer-pill" class="composer-pill model-btn" type="button" aria-haspopup="listbox" aria-expanded="false"><span id="model-name" class="model-name">Blip 2.0</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
                 <ul id="model-menu" class="model-menu" role="listbox" aria-label="Blip version" hidden></ul>
@@ -389,6 +396,9 @@
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
         </button>
         <h1 class="page-title small">Note</h1>
+        <button id="nf-mic" class="icon-btn" type="button" aria-label="Speak into this note" aria-pressed="false">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
         <button id="nf-delete" class="icon-btn" type="button" aria-label="Delete note">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>
         </button>

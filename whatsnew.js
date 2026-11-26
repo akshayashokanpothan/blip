@@ -2,6 +2,8 @@
 // Add an entry at the top when a release ships. `id` must be unique and only ever grow.
 // action: { label, go } where go is 'settings', 'tour' or a view name.
 const WHATS_NEW = [
+  { id: 15, date: '2026-11-26', tag: 'Feature', title: 'Shortcuts on the + button',
+    body: 'Tap + next to the chat box to summarize your day, plan tomorrow by voice, dictate a note, or move unfinished tasks to tomorrow.' },
   { id: 14, date: '2026-11-26', tag: 'Feature', title: 'Your day, summarized',
     body: 'Every evening at 7 PM, Blip sums up your day on Home: what you finished, what’s still open and what’s first tomorrow, with a notification. Change the time in Settings.',
     action: { label: 'Set the time', go: 'settings' } },

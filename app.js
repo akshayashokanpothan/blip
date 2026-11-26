@@ -644,6 +644,7 @@ function openCapture(mode = 'voice') {
 }
 
 function closeCapture() {
+  planTomorrow = false;
   stopDictation();
   captureOpen = false;
   cancelVoice();
@@ -794,8 +795,12 @@ function startListening() {
 
 // Turns what was said or typed into tasks, then shows them for review.
 let processing = false;
+const HAS_DAY = /\b(today|tonight|tomorrow|tmrw|yesterday|mon|tues?|wed(nes)?|thu(rs)?|fri|sat(ur)?|sun)(day)?\b|\b(next|this) (week|month|year)\b|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b|\b\d{1,2}(st|nd|rd|th)\b|\bin \d+ days?\b/i;
+let planTomorrow = false;
+let planAll = false; // this text said no day: every task goes on tomorrow
 async function processText(text) {
   text = text.trim();
+  planAll = planTomorrow && Boolean(text) && !HAS_DAY.test(text);
   if (!text || processing) return;
   processing = true;
   try {
@@ -857,6 +862,7 @@ async function runProcess(text) {
   if (!captureOpen) return;
 
   const adds = actions.filter((a) => a.type === 'add' && a.text);
+  if (planAll) for (const a of adds) a.date = addDays(todayKey(), 1);
   const other = actions.filter((a) => a.type !== 'add');
 
   if (!adds.length && !other.length) {
@@ -1271,10 +1277,11 @@ function todaySummary() {
 }
 // Collapsed to a pill by default; tap to open the full summary.
 let summaryOpen = false;
+let summaryAnytime = false; // opened from the + menu before the usual time
 function renderDaySummary() {
   const box = $('#day-summary');
   const today = todayKey();
-  const show = summaryDue() && localStorage.getItem(SUMMARY_HIDE_KEY) !== today;
+  const show = (summaryDue() || summaryAnytime) && localStorage.getItem(SUMMARY_HIDE_KEY) !== today;
   box.hidden = !show;
   $('#view-home').classList.toggle('summary-on', show);
   if (!show) { $('#view-home').classList.remove('summary-expanded'); return false; }
@@ -1320,6 +1327,7 @@ $('#day-summary').addEventListener('click', (e) => {
     localStorage.setItem(SUMMARY_SEEN_KEY, todayKey());
     renderDaySummary();
   } else if (act === 'hide') {
+    summaryAnytime = false;
     localStorage.setItem(SUMMARY_HIDE_KEY, todayKey());
     renderHome();
   } else if (act === 'move') {
@@ -3021,7 +3029,7 @@ function initDevice() {
     sizeComposer();
     processText(v);
   });
-  $('#composer-plus').addEventListener('click', () => composerInput.focus());
+  initPlusMenus();
   // Version pickers (phone composer and desktop quick-add). A look-and-feel
   // choice only: every option uses the same parser.
   const MODELS = [
@@ -3029,7 +3037,7 @@ function initDevice() {
     ['blip-1.0', 'Blip 1.0', 'Classic'],
     ['blip-1.0-beta', 'Blip 1.0 beta', 'Early preview'],
   ];
-  const pickers = [...document.querySelectorAll('.model-pick')].map((el) => ({
+  const pickers = [...document.querySelectorAll('.model-pick:not(.plus-pick)')].map((el) => ({
     el, pill: el.querySelector('.model-btn'), menu: el.querySelector('.model-menu'), name: el.querySelector('.model-name'),
   }));
   const currentModel = () => (MODELS.find((m) => m[0] === settings.model) || MODELS[0]);
@@ -3307,6 +3315,101 @@ function initInvite() {
     catch { $('#invite-url').select(); document.execCommand('copy'); }
     toast('Invite link copied');
   });
+}
+
+// ---------- + shortcuts ----------
+const PLUS_ICONS = {
+  summary: '<path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',
+  tomorrow: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4M10 15h4M12 13v4"/>',
+  note: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>',
+  move: '<path d="M4 12h12M12 6l6 6-6 6"/><path d="M20 5v14"/>',
+};
+function plusItems() {
+  const today = todayKey();
+  const open = tasks.filter((t) => t.date === today && !t.done).length;
+  return [
+    { id: 'summary', label: 'Summarize today', sub: 'See how your day is going' },
+    { id: 'tomorrow', label: 'Plan tomorrow', sub: 'Speak, and it all goes on tomorrow' },
+    { id: 'note', label: 'New note', sub: 'Dictate a note instead of a task' },
+    { id: 'move', label: 'Move unfinished to tomorrow', sub: open ? `${open} open task${open === 1 ? '' : 's'} today` : 'Nothing open today', off: !open },
+  ];
+}
+function closePlusMenus() {
+  for (const b of $$('#composer-plus, #quick-plus')) b.setAttribute('aria-expanded', 'false');
+  for (const m of $$('.plus-menu')) m.hidden = true;
+}
+function togglePlusMenu(btn) {
+  const menu = btn.parentElement.querySelector('.plus-menu');
+  const open = menu.hidden;
+  closePlusMenus();
+  if (!open) return;
+  menu.innerHTML = plusItems().map((it) => `
+    <li class="model-opt plus-opt${it.off ? ' off' : ''}" role="menuitem" tabindex="0" data-plus="${it.id}"${it.off ? ' aria-disabled="true"' : ''}>
+      <span class="plus-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true">${PLUS_ICONS[it.id]}</svg></span>
+      <span><b>${esc(it.label)}</b><small>${esc(it.sub)}</small></span>
+    </li>`).join('');
+  menu.hidden = false;
+  btn.setAttribute('aria-expanded', 'true');
+  menu.querySelector('[data-plus]')?.focus();
+}
+function runPlus(id) {
+  closePlusMenus();
+  const today = todayKey();
+  if (id === 'summary') {
+    summaryOpen = true;
+    summaryAnytime = true;
+    localStorage.setItem(SUMMARY_SEEN_KEY, today);
+    if (localStorage.getItem(SUMMARY_HIDE_KEY) === today) localStorage.removeItem(SUMMARY_HIDE_KEY);
+    showView('home');
+    renderHome();
+    $('#day-summary').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } else if (id === 'tomorrow') {
+    openCapture('voice');
+    planTomorrow = true;
+    const planned = tasks.filter((t) => t.date === addDays(today, 1) && !t.done);
+    if (!$('#cap-listen').hidden) $('#cap-listen h2').textContent = 'What’s on for tomorrow?';
+    else setCapTitle('Plan tomorrow');
+    $('#cap-live').textContent = planned.length
+      ? `Already planned: ${planned.slice(0, 3).map((t) => t.text).join(', ')}${planned.length > 3 ? ` and ${planned.length - 3} more` : ''}`
+      : 'Nothing planned yet. Say everything for tomorrow.';
+  } else if (id === 'note') {
+    newNote();
+    if (SpeechRec) setTimeout(() => startDictation($('#nf-body'), $('#nf-mic')), 150);
+  } else if (id === 'move') {
+    const tomorrow = addDays(today, 1);
+    let n = 0;
+    for (const t of tasks) {
+      if (t.date === today && !t.done) { t.date = tomorrow; t.notified = false; t.updatedAt = Date.now(); n++; }
+    }
+    if (!n) { toast('Nothing open today'); return; }
+    save();
+    render();
+    toast(`Moved ${n} task${n === 1 ? '' : 's'} to tomorrow`);
+  }
+}
+function initPlusMenus() {
+  for (const btn of $$('#composer-plus, #quick-plus')) {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); togglePlusMenu(btn); });
+  }
+  for (const menu of $$('.plus-menu')) {
+    menu.addEventListener('click', (e) => {
+      const li = e.target.closest('[data-plus]');
+      if (li && li.getAttribute('aria-disabled') !== 'true') runPlus(li.dataset.plus);
+    });
+    menu.addEventListener('keydown', (e) => {
+      const li = e.target.closest('[data-plus]');
+      if (e.key === 'Escape') { closePlusMenus(); return; }
+      if ((e.key === 'Enter' || e.key === ' ') && li) { e.preventDefault(); if (li.getAttribute('aria-disabled') !== 'true') runPlus(li.dataset.plus); }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const items = [...menu.querySelectorAll('[data-plus]')];
+        const i = items.indexOf(li);
+        items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+      }
+    });
+  }
+  document.addEventListener('click', (e) => { if (!e.target.closest('.plus-pick')) closePlusMenus(); });
+  $('#nf-mic').addEventListener('click', () => startDictation($('#nf-body'), $('#nf-mic')));
 }
 
 // ---------- tasks: open, edit, save ----------
