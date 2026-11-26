@@ -2,6 +2,8 @@
 // Add an entry at the top when a release ships. `id` must be unique and only ever grow.
 // action: { label, go } where go is 'settings', 'tour' or a view name.
 const WHATS_NEW = [
+  { id: 9, date: '2026-11-26', tag: 'Feature', title: 'Spoken lists become bullets',
+    body: 'Dictate "milk, eggs and bread" into a task\'s notes and Blip writes a neat bullet list. Press Enter to add the next item.' },
   { id: 8, date: '2026-11-26', tag: 'Update', title: 'Tablets, any way up',
     body: 'Blip now rotates with your device. Tablets in landscape get the full layout, and phones on their side get a two-column home.' },
   { id: 7, date: '2026-11-26', tag: 'Feature', title: 'Cleaner task titles',
