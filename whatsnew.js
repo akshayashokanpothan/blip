@@ -2,6 +2,8 @@
 // Add an entry at the top when a release ships. `id` must be unique and only ever grow.
 // action: { label, go } where go is 'settings', 'tour' or a view name.
 const WHATS_NEW = [
+  { id: 7, date: '2026-11-26', tag: 'Feature', title: 'Cleaner task titles',
+    body: 'Say "birthday of mom" and Blip writes "Mom\'s birthday". Repeated words and filler like "I need to" are tidied too.' },
   { id: 6, date: '2026-11-26', tag: 'Fix', title: 'Sync is more reliable',
     body: 'Tasks you add or delete on one device now show up on your others, even if a sync got stuck before.' },
   { id: 5, date: '2026-11-26', tag: 'Feature', title: 'Long reminder tones',
