@@ -11,6 +11,14 @@ const env = (k: string) => Deno.env.get(k) ?? '';
 
 webpush.setVapidDetails(env('VAPID_SUBJECT'), env('VAPID_PUBLIC_KEY'), env('VAPID_PRIVATE_KEY'));
 
+// Signs a reminder so its notification buttons can act on just that task.
+async function sign(text: string) {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env('CRON_SECRET')),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(text)));
+  return [...mac].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 // Reminders later than this (server was down) are marked sent without ringing.
 const STALE_MS = 15 * 60 * 1000;
 
@@ -44,13 +52,18 @@ Deno.serve(async (req) => {
   for (const r of due) {
     const stale = now - new Date(r.fire_at).getTime() > STALE_MS;
     if (!stale) {
+      const fireAt = new Date(r.fire_at).toISOString();
+      const snooze = r.offset_min < 0; // a snoozed reminder coming back
+      const isTask = !String(r.task_id).startsWith('summary-');
       const payload = JSON.stringify({
         title: r.title,
         body: r.body,
         taskId: r.task_id,
         tag: `blip-${r.task_id}-${r.offset_min}`,
-        ts: new Date(r.fire_at).getTime() + r.offset_min * 60_000,
-        now: r.offset_min === 0,
+        ts: snooze ? new Date(r.fire_at).getTime() : new Date(r.fire_at).getTime() + r.offset_min * 60_000,
+        now: r.offset_min <= 0,
+        // Lets the Done and Snooze buttons work with Blip closed (see reminder-action).
+        ...(isTask ? { act: { uid: r.user_id, fireAt, api: env('SUPABASE_URL'), sig: await sign(`${r.user_id}|${r.task_id}|${fireAt}`) } } : {}),
       });
       for (const s of (subs ?? []).filter((x) => x.user_id === r.user_id && !gone.has(x.endpoint))) {
         try {

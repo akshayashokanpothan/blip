@@ -5,7 +5,7 @@
 // v2: when you sign in (Supabase keys in config.js), sync.js also keeps tasks,
 // notes and profile settings in step across your devices.
 
-const APP_VERSION = '2.4.0';
+const APP_VERSION = '2.3';
 
 const TASKS_KEY = 'blip.tasks.v1';
 const NOTES_KEY = 'blip.notes.v1';
@@ -1640,9 +1640,9 @@ function whenLabel(t) {
 // Push from the server already covers this device, so only show a toast here.
 const pushCovers = () => Boolean(push?.endpoint && profile && profile.mode !== 'guest');
 
-function notify(t, min = 0) {
-  const { title, body } = R.reminderText(t, min, whenLabel(t));
-  toast(`${title} · ${min === 0 ? fmtTime(t.time) : R.leadText(min)}`);
+function notify(t, min = 0, snoozed = false) {
+  const { title, body } = snoozed ? snoozeText(t) : R.reminderText(t, min, whenLabel(t));
+  toast(`${title} · ${snoozed ? 'snoozed' : min === 0 ? fmtTime(t.time) : R.leadText(min)}`);
   if (document.visibilityState === 'visible') { playChime(); buzz(); }
   if (pushCovers() && t.id !== 'test') return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
@@ -1650,11 +1650,12 @@ function notify(t, min = 0) {
     body,
     icon: 'icons/app-icon-192.png',
     badge: 'icons/app-icon-192.png',
-    tag: `blip-${t.id}-${min}`,
+    tag: `blip-${t.id}-${snoozed ? 'snooze' : min}`,
     renotify: true,
     requireInteraction: min === 0,
     vibrate: BUZZ,
-    timestamp: dueAt(t) ?? Date.now(),
+    timestamp: snoozed ? Date.now() : dueAt(t) ?? Date.now(),
+    actions: REMIND_ACTIONS,
     data: { taskId: t.id },
   };
   const fallback = () => { try { new Notification(title, opts); } catch { /* page-level notifications unsupported */ } };
@@ -1683,6 +1684,13 @@ function checkReminders() {
       if (f.min === 0) { t.notified = true; changed = true; }
     }
   }
+  for (const [id, at] of Object.entries(snoozes || {})) {
+    const t = tasks.find((x) => x.id === id);
+    if (t && !t.done && now < at) continue;
+    delete snoozes[id];
+    saveSnoozes();
+    if (t && !t.done && now - at < REMIND_GRACE_MS) notify(t, 0, true);
+  }
   const sumAt = S.summaryAt(summaryTime());
   const sumKey = `summary|${todayKey()}`;
   if (sumAt && now >= sumAt.getTime() && !remindSent[sumKey]) {
@@ -1710,6 +1718,7 @@ function scheduleNextReminder() {
       if (!remindSent[sentKey(t, f)] && f.at < next) next = f.at;
     }
   }
+  for (const at of Object.values(snoozes || {})) if (at < next) next = at;
   const sumAt = S.summaryAt(summaryTime());
   if (sumAt && !remindSent[`summary|${todayKey()}`] && sumAt.getTime() < next) next = sumAt.getTime();
   queuePushSchedule();
@@ -1717,6 +1726,51 @@ function scheduleNextReminder() {
   // Browsers cap timers near 24.8 days; re-arm at most daily.
   const delay = Math.min(Math.max(next - Date.now(), 0), 24 * 3600e3);
   reminderTimer = setTimeout(checkReminders, delay);
+}
+
+// ---------- Done and Snooze on a reminder ----------
+// Notifications carry two buttons. With Blip open, the service worker hands the
+// tap to this page; with Blip closed, the reminder-action function does it.
+const SNOOZE_MIN = 10;
+const SNOOZE_KEY = 'blip.snoozes.v1';
+const REMIND_ACTIONS = [{ action: 'done', title: 'Done' }, { action: 'snooze', title: `Snooze ${SNOOZE_MIN} min` }];
+var snoozes = loadJSON(SNOOZE_KEY, {}); // { taskId: ms when it rings again }
+const saveSnoozes = () => localStorage.setItem(SNOOZE_KEY, JSON.stringify(snoozes));
+const clockOf = (ms) => { const d = new Date(ms); return fmtTime(`${pad(d.getHours())}:${pad(d.getMinutes())}`); };
+
+function snoozeText(t) {
+  return { title: t.text || 'Reminder', body: `Snoozed · was due ${whenLabel(t)}` };
+}
+
+function reminderAction(action, id) {
+  if (id === 'test') {
+    toast(action === 'done' ? 'Done works. That was only a test.' : `Snooze works. It would ring again at ${clockOf(Date.now() + SNOOZE_MIN * 60e3)}.`);
+    return true;
+  }
+  const t = tasks.find((x) => x.id === id);
+  if (!t) return false;
+  if (action === 'done') {
+    delete snoozes[id];
+    saveSnoozes();
+    if (!t.done) completeTask(t);
+    save();
+    render();
+    toast(`Done: ${t.text}`);
+  } else if (!t.done) {
+    snoozes[id] = Math.ceil((Date.now() + SNOOZE_MIN * 60e3) / 1000) * 1000;
+    saveSnoozes();
+    scheduleNextReminder();
+    queuePushSchedule(0);
+    toast(`Snoozed until ${clockOf(snoozes[id])}`);
+  }
+  return true;
+}
+
+// Opened from a button while Blip was closed and the server couldn't be
+// reached: do it once the task is here (sync may still be bringing it in).
+function runPendingAction(action, id, tries = 0) {
+  if (reminderAction(action, id) || tries >= 6) return;
+  setTimeout(() => runPendingAction(action, id, tries + 1), 5000);
 }
 
 // ---------- background push ----------
@@ -1806,6 +1860,12 @@ async function syncPushSchedule() {
       want.set(`${t.id}|${fireAt}`, { task_id: t.id, fire_at: fireAt, offset_min: f.min, title, body });
     }
   }
+  for (const [id, at] of Object.entries(snoozes || {})) {
+    const t = tasks.find((x) => x.id === id);
+    if (!t || t.done || at <= now) continue;
+    const fireAt = new Date(at).toISOString();
+    want.set(`${id}|${fireAt}`, { task_id: id, fire_at: fireAt, offset_min: -SNOOZE_MIN, ...snoozeText(t) });
+  }
   const sumAt = S.summaryAt(summaryTime());
   if (sumAt && sumAt.getTime() > now) {
     const s = todaySummary();
@@ -1814,9 +1874,12 @@ async function syncPushSchedule() {
   }
   try {
     const { data: have, error } = await sb.from('reminders')
-      .select('task_id, fire_at').eq('sent', false).gt('fire_at', new Date(now).toISOString());
+      .select('task_id, fire_at, offset_min').eq('sent', false).gt('fire_at', new Date(now).toISOString());
     if (error) throw error;
-    const stale = (have || []).filter((r) => !want.has(`${r.task_id}|${new Date(r.fire_at).toISOString()}`));
+    // A snooze tapped with Blip closed was made by the server (offset_min < 0):
+    // keep it unless its task is done or gone.
+    const keepSnooze = (r) => r.offset_min < 0 && tasks.some((t) => t.id === r.task_id && !t.done);
+    const stale = (have || []).filter((r) => !want.has(`${r.task_id}|${new Date(r.fire_at).toISOString()}`) && !keepSnooze(r));
     for (const r of stale) {
       await sb.from('reminders').delete().eq('task_id', r.task_id).eq('fire_at', r.fire_at).eq('sent', false);
     }
@@ -3033,13 +3096,14 @@ function initDevice() {
   // Version pickers (phone composer and desktop quick-add). A look-and-feel
   // choice only: every option uses the same parser.
   const MODELS = [
-    ['blip-2.0', 'Blip 2.0', 'Latest'],
+    ['blip-2.3', 'Blip 2.3', 'Latest'],
     ['blip-1.0', 'Blip 1.0', 'Classic'],
     ['blip-1.0-beta', 'Blip 1.0 beta', 'Early preview'],
   ];
   const pickers = [...document.querySelectorAll('.model-pick:not(.plus-pick)')].map((el) => ({
     el, pill: el.querySelector('.model-btn'), menu: el.querySelector('.model-menu'), name: el.querySelector('.model-name'),
   }));
+  if (settings.model === 'blip-2.0') settings.model = 'blip-2.3'; // renamed with the 2.3 line
   const currentModel = () => (MODELS.find((m) => m[0] === settings.model) || MODELS[0]);
   const renderModels = () => {
     const cur = currentModel();
@@ -3719,6 +3783,7 @@ function openTaskFromNotification(id) {
 }
 navigator.serviceWorker?.addEventListener('message', (e) => {
   if (e.data?.type === 'open-task') openTaskFromNotification(e.data.taskId);
+  if (e.data?.type === 'task-action') runPendingAction(e.data.action, e.data.taskId);
 });
 
 // Keep the date and reminders current. Skip re-rendering while typing, and
@@ -3743,10 +3808,13 @@ initNews();
 initInvite();
 checkReminders();
 {
-  const openId = new URLSearchParams(location.search).get('task');
+  const q = new URLSearchParams(location.search);
+  const openId = q.get('task');
+  const act = q.get('act');
   if (openId) {
     history.replaceState(null, '', location.pathname);
-    openTaskFromNotification(openId);
+    if (act === 'done' || act === 'snooze') runPendingAction(act, openId);
+    else openTaskFromNotification(openId);
   }
 }
 

@@ -1,6 +1,6 @@
 // Network-first with cache fallback, so Blip opens offline.
 // Bump CACHE when you change app files so old copies are dropped.
-const CACHE = 'blip-v76';
+const CACHE = 'blip-v77';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icon.svg', 'assets/brand/brand-tokens.css', 'assets/logo/symbol-color.svg', 'icons/app-icon-192.png', 'icons/app-icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'config.js', 'sync.js', 'avatars.js', 'headlines.js', 'reminders.js', 'whatsnew.js', 'summary.js'];
 
 self.addEventListener('install', (e) => {
@@ -48,17 +48,54 @@ self.addEventListener('push', (e) => {
     requireInteraction: Boolean(d.now),
     vibrate: [120, 80, 120, 80, 360], // Blip's buzz: short, short, long
     timestamp: d.ts || Date.now(),
-    data: { taskId: d.taskId || null },
+    actions: taskActions(d.taskId),
+    data: { taskId: d.taskId || null, act: d.act || null },
   }));
 });
+
+// Done and Snooze buttons, on task reminders only (not the day summary).
+const SNOOZE_MIN = 10;
+function taskActions(taskId) {
+  if (!taskId || String(taskId).startsWith('summary-')) return [];
+  return [{ action: 'done', title: 'Done' }, { action: 'snooze', title: `Snooze ${SNOOZE_MIN} min` }];
+}
+const blipWindow = async () => {
+  const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  return wins.find((w) => new URL(w.url).origin === self.location.origin);
+};
+
+// A button on a reminder. With Blip open, the app does it. With Blip closed,
+// the server does it (signed by send-reminders); failing that, Blip opens to do it.
+async function runAction(action, n) {
+  const { taskId, act } = n.data || {};
+  const win = await blipWindow();
+  if (win) { win.postMessage({ type: 'task-action', action, taskId }); return; }
+  if (act?.api && act.sig) {
+    try {
+      const res = await fetch(`${act.api}/functions/v1/reminder-action`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action, taskId, uid: act.uid, fireAt: act.fireAt, sig: act.sig, title: n.title, body: n.body }),
+      });
+      if (res.ok) return;
+    } catch { /* offline: open Blip instead */ }
+  }
+  const url = new URL('./', self.registration.scope);
+  url.searchParams.set('task', taskId);
+  url.searchParams.set('act', action);
+  await self.clients.openWindow(url.href);
+}
 
 // Tapping a reminder focuses Blip (or opens it) on that task.
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   const taskId = e.notification.data?.taskId;
+  if ((e.action === 'done' || e.action === 'snooze') && taskId) {
+    e.waitUntil(runAction(e.action, e.notification));
+    return;
+  }
   e.waitUntil((async () => {
-    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const win = wins.find((w) => new URL(w.url).origin === self.location.origin);
+    const win = await blipWindow();
     if (win) {
       await win.focus();
       if (taskId) win.postMessage({ type: 'open-task', taskId });

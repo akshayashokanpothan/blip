@@ -2,6 +2,8 @@
 // Add an entry at the top when a release ships. `id` must be unique and only ever grow.
 // action: { label, go } where go is 'settings', 'tour' or a view name.
 const WHATS_NEW = [
+  { id: 16, date: '2026-11-26', tag: 'Feature', title: 'Done and Snooze on reminders',
+    body: 'Reminders now have Done and Snooze 10 min buttons. Tick a task off or push it back right from the notification, even with Blip closed.' },
   { id: 15, date: '2026-11-26', tag: 'Feature', title: 'Shortcuts on the + button',
     body: 'Tap + next to the chat box to summarize your day, plan tomorrow by voice, dictate a note, or move unfinished tasks to tomorrow.' },
   { id: 14, date: '2026-11-26', tag: 'Feature', title: 'Your day, summarized',
