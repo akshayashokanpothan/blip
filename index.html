@@ -144,6 +144,7 @@
       <button class="nav-item" data-nav="settings" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>Settings</button>
     </nav>
     <div class="side-foot">
+      <button id="side-invite" class="nav-item" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M19 8v6M16 11h6"/></svg>Invite friends</button>
       <button id="side-install" class="nav-item" type="button" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Install app</button>
       <div class="side-credit">
         <strong>Blip AI</strong>
@@ -472,6 +473,15 @@
         <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
       </button>
 
+      <button id="invite-card" class="card invite-card" type="button">
+        <span class="invite-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M19 8v6M16 11h6"/></svg></span>
+        <span style="flex:1;min-width:0">
+          <strong>Invite friends to Blip</strong>
+          <span class="muted">Share a link. They can start in a few seconds.</span>
+        </span>
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+
       <p class="section-label">AI &amp; processing</p>
       <div class="settings-group">
         <div class="setting-row" style="display:block">
@@ -556,6 +566,10 @@
       <div class="settings-group">
         <button id="install-settings" class="row-link" type="button">
           <span id="install-settings-label">Install the Blip app</span>
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button id="invite-row" class="row-link" type="button">
+          <span>Invite friends</span>
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
         </button>
         <button id="tour-row" class="row-link" type="button">
@@ -827,6 +841,25 @@
       <button id="news-close" class="news-x" type="button" aria-label="Close"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <ol id="news-list" class="news-list"></ol>
+  </section>
+
+  <section id="invite-sheet" class="sheet invite-sheet" role="dialog" aria-label="Invite friends">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="news-head">
+      <h2>Invite friends</h2>
+      <button id="invite-close" class="news-x" type="button" aria-label="Close"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <p class="muted invite-copy">Send your friends a link to Blip. They say it, Blip writes it down.</p>
+    <div class="invite-link">
+      <input id="invite-url" type="text" readonly aria-label="Invite link">
+      <button id="invite-copy" class="pill-btn" type="button">Copy</button>
+    </div>
+    <div class="invite-grid">
+      <a id="invite-wa" class="invite-opt" target="_blank" rel="noopener"><span class="invite-dot wa">W</span>WhatsApp</a>
+      <a id="invite-sms" class="invite-opt"><span class="invite-dot sms">✉</span>Message</a>
+      <a id="invite-mail" class="invite-opt"><span class="invite-dot mail">@</span>Email</a>
+      <button id="invite-more" class="invite-opt" type="button" hidden><span class="invite-dot more">⋯</span>More</button>
+    </div>
   </section>
 
   <p id="toast" class="toast" role="status" aria-live="polite"></p>

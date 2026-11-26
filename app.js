@@ -3061,6 +3061,7 @@ function closeMenus() {
 
 function closeAll() {
   $('#install-sheet').classList.remove('open');
+  $('#invite-sheet')?.classList.remove('open');
   closeNews();
   $('#scrim').classList.remove('show', 'clear');
   closeMenus();
@@ -3112,6 +3113,49 @@ function initNews() {
     closeAll();
     if (go === 'tour') openTour();
     else showView(go);
+  });
+}
+
+// ---------- invite friends ----------
+// Always links to the live app, even from the preview.
+const INVITE_URL = 'https://blip.akshayashokanpothan.com/?ref=invite';
+function inviteText() {
+  const name = displayName();
+  return `${name ? `${name} invited you to try Blip` : 'Try Blip'}, a voice-first to-do app. Just say it, and Blip writes it down.`;
+}
+async function nativeShare() {
+  try {
+    await navigator.share({ title: 'Blip', text: inviteText(), url: INVITE_URL });
+    toast('Thanks for sharing Blip');
+    return true;
+  } catch (err) {
+    return err?.name === 'AbortError'; // closed the share menu: that's fine
+  }
+}
+function openInviteSheet() {
+  closeMenus();
+  const msg = `${inviteText()} ${INVITE_URL}`;
+  $('#invite-url').value = INVITE_URL;
+  $('#invite-wa').href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  $('#invite-sms').href = `sms:?&body=${encodeURIComponent(msg)}`;
+  $('#invite-mail').href = `mailto:?subject=${encodeURIComponent('Try Blip')}&body=${encodeURIComponent(msg)}`;
+  $('#invite-more').hidden = !navigator.share;
+  $('#invite-sheet').classList.add('open');
+  $('#scrim').classList.add('show');
+}
+async function invite() {
+  // Phones: the system share menu (WhatsApp, Instagram, anything). Desktop: Blip's own sheet.
+  if (navigator.share && !mqDesktop.matches && (await nativeShare())) return;
+  openInviteSheet();
+}
+function initInvite() {
+  for (const id of ['#invite-card', '#invite-row', '#side-invite']) $(id)?.addEventListener('click', invite);
+  $('#invite-close').addEventListener('click', closeAll);
+  $('#invite-more').addEventListener('click', async () => { if (await nativeShare()) closeAll(); });
+  $('#invite-copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(`${inviteText()} ${INVITE_URL}`); }
+    catch { $('#invite-url').select(); document.execCommand('copy'); }
+    toast('Invite link copied');
   });
 }
 
@@ -3442,6 +3486,7 @@ initAccountAndInstall();
 initAuth();
 initDevice();
 initNews();
+initInvite();
 checkReminders();
 {
   const openId = new URLSearchParams(location.search).get('task');
