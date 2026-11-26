@@ -86,6 +86,41 @@ let tasks = loadJSON(TASKS_KEY, []).map(normalizeTask);
 let notes = loadJSON(NOTES_KEY, []);
 const settings = loadJSON(SETTINGS_KEY, {});
 const S = window.BlipSummary; // summary.js
+
+// ---------- Blip models ----------
+// The model picker decides which features are on. Blip 1.0 and 1.0 beta are the
+// basics (to-dos by voice or text, reminders, notes). Blip 2.0 adds the day
+// summary and smart extras. Blip 2.3 has the full summary and Plan tomorrow.
+const MODELS = [
+  ['blip-2.3', 'Blip 2.3', 'Latest · full summaries'],
+  ['blip-2.0', 'Blip 2.0', 'Summaries and extras'],
+  ['blip-1.0', 'Blip 1.0', 'Basics · to-dos, reminders'],
+  ['blip-1.0-beta', 'Blip 1.0 beta', 'Early preview · basics'],
+];
+const MODEL_FEATURES = {
+  'blip-2.3': { summary: 'full', plan: true, move: true, bullets: true },
+  'blip-2.0': { summary: 'lite', plan: false, move: true, bullets: true },
+  'blip-1.0': { summary: false, plan: false, move: false, bullets: false },
+  'blip-1.0-beta': { summary: false, plan: false, move: false, bullets: false },
+};
+// The first model, newest first, that has a feature, for "Needs Blip 2.0" labels.
+const FEATURE_MIN = { summary: 'blip-2.0', move: 'blip-2.0', bullets: 'blip-2.0', plan: 'blip-2.3' };
+const modelId = () => (MODEL_FEATURES[settings.model] ? settings.model : MODELS[0][0]);
+const modelName = (id = modelId()) => (MODELS.find((m) => m[0] === id) || MODELS[0])[1];
+const can = (feature) => Boolean(MODEL_FEATURES[modelId()][feature]);
+let renderModelPickers = () => {};
+// Switch model and redraw everything a model changes (summary, + menu, Settings, push).
+function setModel(id) {
+  if (!MODEL_FEATURES[id] || id === modelId()) return;
+  settings.model = id;
+  saveSettings();
+  renderModelPickers();
+  if (!can('summary')) { summaryOpen = false; summaryAnytime = false; }
+  renderSummaryOptions();
+  scheduleNextReminder();
+  render();
+  toast(`Switched to ${modelName(id)}`);
+}
 if (settings.theme === 'default' || settings.theme === 'green') settings.theme = 'light';
 if (!THEMES.includes(settings.theme)) settings.theme = 'light';
 
@@ -1027,7 +1062,7 @@ function stopDictation() {
   }
   // A spoken list becomes bullets, added under anything already in the box.
   const spoken = [d.carried, d.heard].filter(Boolean).join(' ').trim();
-  const items = spoken && listItems(spoken);
+  const items = can('bullets') && spoken && listItems(spoken);
   if (items) {
     d.ta.value = d.base + (d.base ? '\n' : '') + bullets(items);
     autoGrow(d.ta);
@@ -1266,14 +1301,14 @@ function renderHome() {
 // day went, between the headline and the mic, until midnight.
 const SUMMARY_HIDE_KEY = 'blip.summary.hidden';
 const SUMMARY_SEEN_KEY = 'blip.summary.seen';
-const summaryTime = () => settings.summaryTime || S.DEFAULT_TIME;
+const summaryTime = () => (can('summary') ? settings.summaryTime || S.DEFAULT_TIME : 'off');
 function summaryDue(now = new Date()) {
   const at = S.summaryAt(summaryTime(), now);
   return Boolean(at && now >= at);
 }
 function todaySummary() {
   const today = todayKey();
-  return S.daySummary(tasks, today, addDays(today, 1), displayName().split(/\s+/)[0]);
+  return S.daySummary(tasks, today, addDays(today, 1), displayName().split(/\s+/)[0], { lite: MODEL_FEATURES[modelId()].summary === 'lite' });
 }
 // Collapsed to a pill by default; tap to open the full summary.
 let summaryOpen = false;
@@ -1281,7 +1316,7 @@ let summaryAnytime = false; // opened from the + menu before the usual time
 function renderDaySummary() {
   const box = $('#day-summary');
   const today = todayKey();
-  const show = (summaryDue() || summaryAnytime) && localStorage.getItem(SUMMARY_HIDE_KEY) !== today;
+  const show = can('summary') && (summaryDue() || summaryAnytime) && localStorage.getItem(SUMMARY_HIDE_KEY) !== today;
   box.hidden = !show;
   $('#view-home').classList.toggle('summary-on', show);
   if (!show) { $('#view-home').classList.remove('summary-expanded'); return false; }
@@ -1304,17 +1339,17 @@ function renderDaySummary() {
     </button>
     <div class="ds-body"${summaryOpen ? '' : ' hidden'}>
     <h3 class="ds-title">${esc(s.title.join(' '))}</h3>
-    <p class="ds-line">${esc(s.line)}</p>
-    <div class="ds-stats">
+    ${s.line ? `<p class="ds-line">${esc(s.line)}</p>` : ''}
+    <div class="ds-stats${s.lite ? ' two' : ''}">
       <div class="ds-stat good"><b>${s.done.length}</b><span>Done</span></div>
       <div class="ds-stat"><b>${left}</b><span>Still open</span></div>
-      <div class="ds-stat"><b>${s.next.length}</b><span>Tomorrow</span></div>
+      ${s.lite ? '' : `<div class="ds-stat"><b>${s.next.length}</b><span>Tomorrow</span></div>`}
     </div>
     ${s.done.length ? `<p class="ds-label">Done today</p><ul class="ds-list done">${s.done.slice(0, 3).map(li).join('')}${more(s.done, 3)}</ul>` : ''}
     ${s.open.length ? `<p class="ds-label">Still open</p><ul class="ds-list">${s.open.slice(0, 3).map(li).join('')}${more(s.open, 3)}</ul>` : ''}
-    ${n ? `<p class="ds-label">First up tomorrow</p><p class="ds-next">${esc(n.text)}${n.time ? ` <span class="muted">· ${esc(fmtTime(n.time))}</span>` : ''}</p>` : ''}
+    ${n && !s.lite ? `<p class="ds-label">First up tomorrow</p><p class="ds-next">${esc(n.text)}${n.time ? ` <span class="muted">· ${esc(fmtTime(n.time))}</span>` : ''}</p>` : ''}
     <div class="ds-actions">
-      ${s.open.length ? `<button class="pill-btn" type="button" data-ds="move">Move ${s.open.length} to tomorrow</button>` : ''}
+      ${s.open.length && !s.lite ? `<button class="pill-btn" type="button" data-ds="move">Move ${s.open.length} to tomorrow</button>` : ''}
       <button class="link" type="button" data-ds="hide">Hide for today</button>
     </div>
     </div>`;
@@ -1364,6 +1399,14 @@ function notifySummary() {
 const SUMMARY_CHOICES = ['off', '18:00', '19:00', '20:00', '21:00'];
 function renderSummaryOptions() {
   const cur = summaryTime();
+  const locked = !can('summary');
+  $('#summary-opts').closest('.setting-row').classList.toggle('locked', locked);
+  if (locked) {
+    $('#summary-opts').innerHTML = '<button type="button" class="remind-chip" data-model-up="blip-2.3">Switch to Blip 2.3</button>';
+    $('#summary-time').value = '';
+    $('#summary-hint').textContent = `Day summaries come with Blip 2.0 and 2.3. You’re on ${modelName()}, which keeps to the basics: to-dos and reminders.`;
+    return;
+  }
   $('#summary-opts').innerHTML = SUMMARY_CHOICES.map((v) => {
     const on = v === cur;
     return `<button type="button" class="remind-chip${on ? ' on' : ''}" data-summary="${v}" aria-pressed="${on}">${v === 'off' ? 'Off' : fmtTime(v)}</button>`;
@@ -1371,7 +1414,7 @@ function renderSummaryOptions() {
   $('#summary-time').value = cur === 'off' ? '' : cur;
   $('#summary-hint').textContent = cur === 'off'
     ? 'Off. Turn it on to see how your day went each evening.'
-    : `Every day at ${fmtTime(cur)}, Blip sums up your day on Home and sends you a notification.`;
+    : `Every day at ${fmtTime(cur)}, Blip sums up your day on Home and sends you a notification.${can('plan') ? '' : ' Blip 2.3 adds a personal note and a look at tomorrow.'}`;
 }
 function saveSummaryTime(v) {
   settings.summaryTime = v;
@@ -1383,6 +1426,8 @@ function saveSummaryTime(v) {
   toast(v === 'off' ? 'Day summary off' : `Day summary at ${fmtTime(v)}`);
 }
 $('#summary-opts').addEventListener('click', (e) => {
+  const up = e.target.closest('[data-model-up]')?.dataset.modelUp;
+  if (up) { setModel(up); return; }
   const v = e.target.closest('[data-summary]')?.dataset.summary;
   if (v) saveSummaryTime(v);
 });
@@ -3093,18 +3138,12 @@ function initDevice() {
     processText(v);
   });
   initPlusMenus();
-  // Version pickers (phone composer and desktop quick-add). A look-and-feel
-  // choice only: every option uses the same parser.
-  const MODELS = [
-    ['blip-2.3', 'Blip 2.3', 'Latest'],
-    ['blip-1.0', 'Blip 1.0', 'Classic'],
-    ['blip-1.0-beta', 'Blip 1.0 beta', 'Early preview'],
-  ];
+  // Model pickers (phone composer and desktop quick-add). The model decides
+  // which features are on: see MODEL_FEATURES.
   const pickers = [...document.querySelectorAll('.model-pick:not(.plus-pick)')].map((el) => ({
     el, pill: el.querySelector('.model-btn'), menu: el.querySelector('.model-menu'), name: el.querySelector('.model-name'),
   }));
-  if (settings.model === 'blip-2.0') settings.model = 'blip-2.3'; // renamed with the 2.3 line
-  const currentModel = () => (MODELS.find((m) => m[0] === settings.model) || MODELS[0]);
+  const currentModel = () => (MODELS.find((m) => m[0] === modelId()) || MODELS[0]);
   const renderModels = () => {
     const cur = currentModel();
     pickers.forEach((p) => {
@@ -3122,16 +3161,14 @@ function initDevice() {
     if (open) p.menu.querySelector('.on')?.focus();
   };
   renderModels();
+  renderModelPickers = renderModels;
   pickers.forEach((p) => {
     p.pill.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); setMenu(p, p.menu.hidden); });
     p.menu.addEventListener('click', (e) => {
       const li = e.target.closest('[data-model]');
       if (!li) return;
-      settings.model = li.dataset.model;
-      saveSettings();
-      renderModels();
       setMenu(p, false);
-      toast(`Switched to ${currentModel()[1]}`);
+      setModel(li.dataset.model);
     });
     p.menu.addEventListener('keydown', (e) => {
       const items = [...p.menu.querySelectorAll('[data-model]')];
@@ -3391,12 +3428,17 @@ const PLUS_ICONS = {
 function plusItems() {
   const today = todayKey();
   const open = tasks.filter((t) => t.date === today && !t.done).length;
-  return [
-    { id: 'summary', label: 'Summarize today', sub: 'See how your day is going' },
-    { id: 'tomorrow', label: 'Plan tomorrow', sub: 'Speak, and it all goes on tomorrow' },
+  const items = [
+    { id: 'summary', need: 'summary', label: 'Summarize today', sub: can('plan') ? 'See how your day is going' : 'Done and open at a glance' },
+    { id: 'tomorrow', need: 'plan', label: 'Plan tomorrow', sub: 'Speak, and it all goes on tomorrow' },
     { id: 'note', label: 'New note', sub: 'Dictate a note instead of a task' },
-    { id: 'move', label: 'Move unfinished to tomorrow', sub: open ? `${open} open task${open === 1 ? '' : 's'} today` : 'Nothing open today', off: !open },
+    { id: 'move', need: 'move', label: 'Move unfinished to tomorrow', sub: open ? `${open} open task${open === 1 ? '' : 's'} today` : 'Nothing open today', off: !open },
   ];
+  // Features this model doesn't have sit at the bottom, locked, naming the model that has them.
+  for (const it of items) {
+    if (it.need && !can(it.need)) Object.assign(it, { locked: FEATURE_MIN[it.need], off: false, sub: `Needs ${modelName(FEATURE_MIN[it.need])}${it.need === 'plan' ? '' : ' or later'}` });
+  }
+  return [...items.filter((i) => !i.locked), ...items.filter((i) => i.locked)];
 }
 function closePlusMenus() {
   for (const b of $$('#composer-plus, #quick-plus')) b.setAttribute('aria-expanded', 'false');
@@ -3408,16 +3450,20 @@ function togglePlusMenu(btn) {
   closePlusMenus();
   if (!open) return;
   menu.innerHTML = plusItems().map((it) => `
-    <li class="model-opt plus-opt${it.off ? ' off' : ''}" role="menuitem" tabindex="0" data-plus="${it.id}"${it.off ? ' aria-disabled="true"' : ''}>
+    <li class="model-opt plus-opt${it.off ? ' off' : ''}${it.locked ? ' locked' : ''}" role="menuitem" tabindex="0" data-plus="${it.id}"${it.locked ? ` data-locked="${it.locked}"` : ''}${it.off ? ' aria-disabled="true"' : ''}>
       <span class="plus-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true">${PLUS_ICONS[it.id]}</svg></span>
       <span><b>${esc(it.label)}</b><small>${esc(it.sub)}</small></span>
+      ${it.locked ? `<span class="plus-lock" aria-label="Locked"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>` : ''}
     </li>`).join('');
+  menu.querySelector('.plus-opt.locked')?.insertAdjacentHTML('beforebegin', `<li class="plus-sep" role="presentation">With ${esc(modelName('blip-2.3'))}</li>`);
   menu.hidden = false;
   btn.setAttribute('aria-expanded', 'true');
   menu.querySelector('[data-plus]')?.focus();
 }
-function runPlus(id) {
+function runPlus(id, locked) {
   closePlusMenus();
+  // A locked shortcut moves you up to the model that has it, then runs it.
+  if (locked) setModel('blip-2.3');
   const today = todayKey();
   if (id === 'summary') {
     summaryOpen = true;
@@ -3458,12 +3504,12 @@ function initPlusMenus() {
   for (const menu of $$('.plus-menu')) {
     menu.addEventListener('click', (e) => {
       const li = e.target.closest('[data-plus]');
-      if (li && li.getAttribute('aria-disabled') !== 'true') runPlus(li.dataset.plus);
+      if (li && li.getAttribute('aria-disabled') !== 'true') runPlus(li.dataset.plus, li.dataset.locked);
     });
     menu.addEventListener('keydown', (e) => {
       const li = e.target.closest('[data-plus]');
       if (e.key === 'Escape') { closePlusMenus(); return; }
-      if ((e.key === 'Enter' || e.key === ' ') && li) { e.preventDefault(); if (li.getAttribute('aria-disabled') !== 'true') runPlus(li.dataset.plus); }
+      if ((e.key === 'Enter' || e.key === ' ') && li) { e.preventDefault(); if (li.getAttribute('aria-disabled') !== 'true') runPlus(li.dataset.plus, li.dataset.locked); }
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         const items = [...menu.querySelectorAll('[data-plus]')];

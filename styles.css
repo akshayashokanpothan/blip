@@ -1021,3 +1021,11 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
   .fab { bottom: calc(env(safe-area-inset-bottom) + 66px); width: 52px; height: 52px; }
 }
 .plus-opt.off { opacity: .5; cursor: default; }
+/* Blip model tiers: shortcuts a model doesn't have */
+.plus-sep { list-style: none; padding: 8px 12px 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--line); margin-top: 4px; }
+.plus-opt.locked > span:nth-child(2) { opacity: .6; }
+.plus-opt.locked .plus-ic { opacity: .55; }
+.plus-lock { margin-left: auto; flex: none; color: var(--muted); display: grid; place-items: center; }
+.plus-lock svg { width: 16px; height: 16px; }
+.ds-stats.two { grid-template-columns: repeat(2, 1fr); }
+.remind-row.locked .summary-other { display: none; }

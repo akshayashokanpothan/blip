@@ -34,7 +34,8 @@
   const pick = (list, seed) => list[[...seed].reduce((n, c) => n + c.charCodeAt(0), 0) % list.length];
 
   // tasks: Blip tasks; today/tomorrow: YYYY-MM-DD keys; name: first name or ''.
-  function daySummary(tasks, today, tomorrow, name = '') {
+  // lite (Blip 2.0): the facts only, without the personal line or a look at tomorrow.
+  function daySummary(tasks, today, tomorrow, name = '', { lite = false } = {}) {
     const todays = tasks.filter((t) => t.date === today);
     const done = todays.filter((t) => t.done);
     const open = todays.filter((t) => !t.done);
@@ -57,8 +58,17 @@
     const body = !total
       ? `A quiet day${hi}. ${line}`
       : `You finished ${done.length} of ${total} task${total === 1 ? '' : 's'}${hi}.${left ? ` ${left} still open.` : ''} ${line}`;
+    if (lite) {
+      return {
+        mood, total, done, open, older, next, lite,
+        title: ['Today', 'at a glance'],
+        line: '',
+        notifTitle: 'Your day, summarized',
+        notifBody: total ? `${done.length} of ${total} done.${left ? ` ${left} still open.` : ''}` : 'Nothing on the list today.',
+      };
+    }
     return {
-      mood, total, done, open, older, next,
+      mood, total, done, open, older, next, lite,
       title: titles[mood],
       line,
       notifTitle: mood === 'all' ? 'Your day, summarized 🎉' : 'Your day, summarized',
