@@ -1297,7 +1297,7 @@ function renderDaySummary() {
   const gist = s.total ? `${s.done.length} of ${s.total} done` : 'A quiet day';
   box.innerHTML = `
     <button class="ds-pill" type="button" data-ds="toggle" aria-expanded="${summaryOpen}">
-      <span class="ds-spark" aria-hidden="true">✦</span>
+      <span class="ds-spark" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l1.9 5.1L19 11l-5.1 1.9L12 18l-1.9-5.1L5 11l5.1-1.9z"/></svg></span>
       <span class="ds-pill-text"><b>Your day, summarized</b><span>${esc(gist)}</span></span>
       ${fresh && !summaryOpen ? '<span class="ds-new" aria-label="New"></span>' : ''}
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>

@@ -202,7 +202,8 @@ svg.i { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-widt
   box-shadow: 0 6px 16px rgba(15, 31, 24, 0.12);
 }
 [data-theme="dark"] .avatar-btn { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4); }
-.avatar-btn svg.i { width: 22px; height: 22px; }
+.avatar-btn svg.i { width: 22px; height: 22px; display: block; }
+.avatar-btn .profile-ic { display: grid; place-items: center; }
 .avatar-btn img { width: 100%; height: 100%; border-radius: 999px; object-fit: cover; }
 
 .avatar { width: 52px; height: 52px; border-radius: 999px; background: var(--pill); display: grid; place-items: center; overflow: hidden; flex: none; color: var(--fab); font-family: var(--display); font-weight: 600; font-size: 20px; }
@@ -356,8 +357,9 @@ main {
 .plus-menu { min-width: 260px; }
 .quick-add .plus-menu { bottom: calc(100% + 14px); }
 .plus-opt { justify-content: flex-start; }
+.model-opt .plus-ic { display: grid; place-items: center; gap: 0; }
 .plus-ic { width: 34px; height: 34px; flex: none; border-radius: 999px; display: grid; place-items: center; background: var(--pill); color: var(--fab); }
-.plus-ic svg { width: 18px; height: 18px; }
+.plus-ic svg { width: 18px; height: 18px; display: block; }
 .composer-plus[aria-expanded="true"] { background: var(--pill); transform: rotate(45deg); }
 .composer-plus { transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease); }
 .quick-plus { width: 36px; height: 36px; flex: none; border-radius: 999px; display: grid; place-items: center; color: var(--muted); transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease); }
@@ -919,12 +921,13 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
 .ds-pill:hover { background: var(--pill); }
 .day-summary.open .ds-pill { padding: 12px 16px 8px 12px; border-radius: 22px 22px 0 0; }
 .day-summary.open .ds-pill:hover { background: transparent; }
-.ds-spark { width: 34px; height: 34px; flex: none; border-radius: 999px; display: grid; place-items: center; background: var(--fab); color: var(--fab-ink, #fff); font-size: 15px; }
+.ds-spark { width: 34px; height: 34px; flex: none; border-radius: 999px; display: grid; place-items: center; background: var(--fab); color: var(--fab-ink, #fff); }
+.ds-spark svg { width: 18px; height: 18px; display: block; fill: currentColor; stroke: none; }
 .ds-pill-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
 .ds-pill-text b { font-size: 14.5px; font-weight: 600; }
 .ds-pill-text span { font-size: 13px; color: var(--muted); }
-.ds-pill svg { width: 18px; height: 18px; margin-left: 6px; color: var(--muted); transition: transform .2s ease; }
-.day-summary.open .ds-pill svg { transform: rotate(180deg); margin-left: auto; }
+.ds-pill > svg { width: 18px; height: 18px; margin-left: 6px; color: var(--muted); transition: transform .2s ease; }
+.day-summary.open .ds-pill > svg { transform: rotate(180deg); margin-left: auto; }
 /* Until it's opened today, the pill glows gently to draw the eye. */
 .day-summary.fresh:not(.open) { border-color: color-mix(in srgb, var(--fab) 55%, var(--line)); animation: ds-glow 2.4s ease-in-out infinite; }
 .day-summary.fresh:not(.open) .ds-spark { animation: ds-spark 2.4s ease-in-out infinite; }
@@ -971,7 +974,8 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
 .invite-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 8px; padding-bottom: 8px; }
 .invite-opt { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px; border-radius: 14px; color: var(--ink); font-size: 13.5px; font-weight: 500; text-decoration: none; }
 .invite-opt:hover { background: var(--pill); }
-.invite-dot { width: 46px; height: 46px; border-radius: 999px; display: grid; place-items: center; font-weight: 700; font-size: 18px; color: #fff; }
+.invite-dot { width: 46px; height: 46px; border-radius: 999px; display: grid; place-items: center; color: #fff; }
+.invite-dot svg { width: 22px; height: 22px; display: block; }
 .invite-dot.wa { background: #25D366; }
 .invite-dot.sms { background: #3B82F6; }
 .invite-dot.mail { background: #6B7280; }
