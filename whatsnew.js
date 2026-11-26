@@ -2,6 +2,9 @@
 // Add an entry at the top when a release ships. `id` must be unique and only ever grow.
 // action: { label, go } where go is 'settings', 'tour' or a view name.
 const WHATS_NEW = [
+  { id: 11, date: '2026-11-26', tag: 'Fix', title: 'Sync you can trust',
+    body: 'Blip now does a full sync check every 15 minutes and tells you if a device needs you to sign in again. See details and Sync now in Settings.',
+    action: { label: 'Open Settings', go: 'settings' } },
   { id: 10, date: '2026-11-26', tag: 'Feature', title: 'New Meld style',
     body: 'A magenta and indigo look with Space Grotesk, in light and dark. Pick it in Settings under Style.',
     action: { label: 'Try it', go: 'settings' } },
