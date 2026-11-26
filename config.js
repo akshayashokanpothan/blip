@@ -9,4 +9,6 @@ window.BLIP_CONFIG = {
   // Background reminders: paste the VAPID public key here after following
   // docs/push-setup.md. Empty means reminders only ring while Blip is open.
   vapidPublicKey: '',
+  // AI title polish: set to true after deploying the tidy-titles function (docs/ai-titles-setup.md).
+  aiTitles: false,
 };

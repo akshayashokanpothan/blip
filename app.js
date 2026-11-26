@@ -5,7 +5,7 @@
 // v2: when you sign in (Supabase keys in config.js), sync.js also keeps tasks,
 // notes and profile settings in step across your devices.
 
-const APP_VERSION = '2.2.8';
+const APP_VERSION = '2.3.2';
 
 const TASKS_KEY = 'blip.tasks.v1';
 const NOTES_KEY = 'blip.notes.v1';
@@ -389,8 +389,19 @@ const OWNED = new Set(('home house flat apartment room office place car bike sco
 const VERBS = new Set(('call text message email mail ping ring meet see visit buy get order pick collect drop send pay book check fix clean wash '
   + 'finish complete submit review prepare plan schedule cancel renew sign print bring take make write read update share confirm remind ask tell '
   + 'start continue arrange organise organize sort file return deliver attend join celebrate wish').split(' '));
+// Spoken filler that never belongs in a title, so most messy titles are fixed for free.
+const FILLER_ANY = /,?\s*\b(?:um+|uh+|erm+|hmm+|you know|I mean)\b,?/gi;
+const FILLER_LEAD = /^(?:so|basically|like|yeah|yes|okay|ok|well|actually|just|and|then|also)\b[\s,]*/i;
+const FILLER_TAIL = /[\s,]*\b(?:okay|ok|please|yeah|and stuff|and things|or something|and all that|and everything|before|by|until|till|on|at|from)$/i;
+function stripFiller(s) {
+  s = s.replace(FILLER_ANY, ' ').replace(/\s+/g, ' ').trim();
+  for (let prev = ''; prev !== s;) { prev = s; s = s.replace(FILLER_LEAD, '').replace(FILLER_TAIL, '').trim(); }
+  return s;
+}
 function tidyTitle(text) {
   let s = text.replace(/\b(\w+)(\s+\1\b)+/gi, '$1').replace(/\bi\b/g, 'I').replace(/\s+/g, ' ').trim();
+  const cleaned = stripFiller(s);
+  if (cleaned) s = cleaned;
   const m = s.match(new RegExp(`^(.*?)\\b((?:\\w+\\s+){0,2}\\w+)\\s+of\\s+(my\\s+|our\\s+)?(${KIN}|[A-Z][a-z]+)$`, 'i'));
   if (m) {
     const [, before, thing, mine = '', owner] = m;
@@ -792,18 +803,30 @@ async function processText(text) {
   }
 }
 
-// Signed-in users get grammar-tidied titles from Blip's server (Claude). It only
-// rewrites titles, never dates or times, and if it's slow, missing or offline the
-// offline titles stay as they are.
+// Signed-in users get grammar-tidied titles from Blip's server (Claude), but only
+// for titles the offline rules couldn't clean up: most tasks never leave the phone.
+// It only rewrites titles, never dates or times, and if it's slow, missing, over
+// the daily limit or offline, the offline titles stay as they are.
+const AI_CAP_KEY = 'blip.ai.capped';
+const MESSY_WORDS = /\b(um+|uh+|erm|hmm+|like|basically|actually|literally|kinda|kind of|sort of|gonna|wanna|gotta|you know|i mean|stuff|thingy?|something|whatever|okay|ok|yeah|please)\b/i;
+const MESSY_START = /^(to|that|and|so|then|also|maybe|just|remember|remind|don'?t forget|need|have)\b/i;
+function needsPolish(title) {
+  const words = title.trim().split(/\s+/);
+  return words.length >= 7 || MESSY_WORDS.test(title) || MESSY_START.test(title);
+}
 let tidyOff = false;
+const utcDay = () => new Date().toISOString().slice(0, 10);
 async function tidyWithAI(text, actions) {
-  const adds = actions.filter((a) => a.type === 'add' && a.text);
-  if (tidyOff || !adds.length || !sb || !profile || profile.mode === 'guest' || !navigator.onLine) return;
+  if (!window.BLIP_CONFIG?.aiTitles || tidyOff || !sb || !profile || profile.mode === 'guest' || !navigator.onLine) return;
+  if (localStorage.getItem(AI_CAP_KEY) === utcDay()) return; // daily limit reached; try again tomorrow
+  const adds = actions.filter((a) => a.type === 'add' && a.text && needsPolish(a.text));
+  if (!adds.length) return;
   try {
     const call = sb.functions.invoke('tidy-titles', { body: { text, titles: adds.map((a) => a.text) } });
     const res = await Promise.race([call, wait(2500).then(() => null)]);
     if (!res) return;
     if (res.error) { if ([401, 404].includes(res.error.context?.status)) tidyOff = true; return; }
+    if (res.data?.capped) localStorage.setItem(AI_CAP_KEY, utcDay());
     const out = res.data?.titles;
     if (Array.isArray(out) && out.length === adds.length) {
       adds.forEach((a, i) => { if (typeof out[i] === 'string' && out[i].trim()) a.text = out[i].trim(); });
