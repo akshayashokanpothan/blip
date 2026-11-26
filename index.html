@@ -219,6 +219,10 @@
       <div class="home-layout">
         <div class="home-main">
           <form id="quick-add" class="quick-add" autocomplete="off">
+            <div class="model-pick plus-pick">
+              <button id="quick-plus" class="quick-plus" type="button" aria-label="Shortcuts" title="Shortcuts" aria-haspopup="menu" aria-expanded="false"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+              <ul class="model-menu plus-menu" role="menu" aria-label="Shortcuts" hidden></ul>
+            </div>
             <input id="quick-input" type="text" placeholder="Add a task, e.g. call mom tomorrow at 6 pm" aria-label="Add a task">
             <kbd class="kbd" title="Press N to focus">N</kbd>
             <div class="model-pick quick-model">
@@ -237,6 +241,8 @@
             <p id="hero-copy" class="hero-copy">Turn your thoughts into tasks, notes, and reminders.</p>
           </div>
 
+          <div id="day-summary" class="day-summary" hidden></div>
+
           <div class="mic-wrap">
             <button id="home-mic" class="mic-hero" type="button" aria-label="Speak">
               <span class="ring"></span><span class="ring r2"></span>
@@ -248,7 +254,10 @@
           <form id="home-composer" class="composer" autocomplete="off">
             <textarea id="composer-input" rows="1" placeholder="Or type a task…" aria-label="Type a task"></textarea>
             <div class="composer-bar">
-              <button id="composer-plus" class="composer-plus" type="button" aria-label="Start typing a task" title="Type a task">+</button>
+              <div class="model-pick plus-pick">
+                <button id="composer-plus" class="composer-plus" type="button" aria-label="Shortcuts" title="Shortcuts" aria-haspopup="menu" aria-expanded="false">+</button>
+                <ul class="model-menu plus-menu" role="menu" aria-label="Shortcuts" hidden></ul>
+              </div>
               <div class="model-pick">
                 <button id="composer-pill" class="composer-pill model-btn" type="button" aria-haspopup="listbox" aria-expanded="false"><span id="model-name" class="model-name">Blip 2.0</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
                 <ul id="model-menu" class="model-menu" role="listbox" aria-label="Blip version" hidden></ul>
@@ -387,6 +396,9 @@
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
         </button>
         <h1 class="page-title small">Note</h1>
+        <button id="nf-mic" class="icon-btn" type="button" aria-label="Speak into this note" aria-pressed="false">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
         <button id="nf-delete" class="icon-btn" type="button" aria-label="Delete note">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>
         </button>
@@ -526,6 +538,11 @@
           <button id="remind-reset" class="link" type="button" hidden>Back to default</button>
         </div>
         <div class="setting-row remind-row">
+          <span class="grow"><strong>Day summary</strong><span id="summary-hint" class="hint"></span></span>
+          <div id="summary-opts" class="remind-opts" role="group" aria-label="When to summarize your day"></div>
+          <label class="summary-other"><span>Other time</span><input id="summary-time" type="time" step="300"></label>
+        </div>
+        <div class="setting-row remind-row">
           <span class="grow"><strong>Reminder sound</strong><span class="hint">Plays when a reminder rings while Blip is open, with Blip’s own buzz. Short tones ring once; long ones play for a few seconds until you tap. Tap one to hear it.</span></span>
           <div id="chime-opts" class="remind-opts" role="group" aria-label="Reminder sound"></div>
         </div>
@@ -580,7 +597,7 @@
 
       <p class="section-label">About</p>
       <div class="settings-group">
-        <div class="setting-row" style="border-top:0"><span>Blip</span><span id="about-version" class="muted">Version 2.3.9</span></div>
+        <div class="setting-row" style="border-top:0"><span>Blip</span><span id="about-version" class="muted">Version 2.4.0</span></div>
       </div>
     </section>
   </main>
@@ -855,10 +872,10 @@
       <button id="invite-copy" class="pill-btn" type="button">Copy</button>
     </div>
     <div class="invite-grid">
-      <a id="invite-wa" class="invite-opt" target="_blank" rel="noopener"><span class="invite-dot wa">W</span>WhatsApp</a>
-      <a id="invite-sms" class="invite-opt"><span class="invite-dot sms">✉</span>Message</a>
-      <a id="invite-mail" class="invite-opt"><span class="invite-dot mail">@</span>Email</a>
-      <button id="invite-more" class="invite-opt" type="button" hidden><span class="invite-dot more">⋯</span>More</button>
+      <a id="invite-wa" class="invite-opt" target="_blank" rel="noopener"><span class="invite-dot wa"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/><path d="M9.5 9.5c0 2.8 2.2 5 5 5l1-1.5-2-1-1 .8a3.5 3.5 0 0 1-2.3-2.3l.8-1-1-2z"/></svg></span>WhatsApp</a>
+      <a id="invite-sms" class="invite-opt"><span class="invite-dot sms"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg></span>Message</a>
+      <a id="invite-mail" class="invite-opt"><span class="invite-dot mail"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5L12 13l8.5-6.5"/></svg></span>Email</a>
+      <button id="invite-more" class="invite-opt" type="button" hidden><span class="invite-dot more"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></svg></span>More</button>
     </div>
   </section>
 
@@ -870,6 +887,7 @@
   <script src="headlines.js"></script>
   <script src="reminders.js"></script>
   <script src="whatsnew.js"></script>
+  <script src="summary.js"></script>
   <script src="sync.js"></script>
   <script src="app.js"></script>
 </body>

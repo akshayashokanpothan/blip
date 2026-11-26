@@ -5,7 +5,7 @@
 // v2: when you sign in (Supabase keys in config.js), sync.js also keeps tasks,
 // notes and profile settings in step across your devices.
 
-const APP_VERSION = '2.3.9';
+const APP_VERSION = '2.4.0';
 
 const TASKS_KEY = 'blip.tasks.v1';
 const NOTES_KEY = 'blip.notes.v1';
@@ -85,6 +85,7 @@ function normPriority(p) {
 let tasks = loadJSON(TASKS_KEY, []).map(normalizeTask);
 let notes = loadJSON(NOTES_KEY, []);
 const settings = loadJSON(SETTINGS_KEY, {});
+const S = window.BlipSummary; // summary.js
 if (settings.theme === 'default' || settings.theme === 'green') settings.theme = 'light';
 if (!THEMES.includes(settings.theme)) settings.theme = 'light';
 
@@ -643,6 +644,7 @@ function openCapture(mode = 'voice') {
 }
 
 function closeCapture() {
+  planTomorrow = false;
   stopDictation();
   captureOpen = false;
   cancelVoice();
@@ -793,8 +795,12 @@ function startListening() {
 
 // Turns what was said or typed into tasks, then shows them for review.
 let processing = false;
+const HAS_DAY = /\b(today|tonight|tomorrow|tmrw|yesterday|mon|tues?|wed(nes)?|thu(rs)?|fri|sat(ur)?|sun)(day)?\b|\b(next|this) (week|month|year)\b|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b|\b\d{1,2}(st|nd|rd|th)\b|\bin \d+ days?\b/i;
+let planTomorrow = false;
+let planAll = false; // this text said no day: every task goes on tomorrow
 async function processText(text) {
   text = text.trim();
+  planAll = planTomorrow && Boolean(text) && !HAS_DAY.test(text);
   if (!text || processing) return;
   processing = true;
   try {
@@ -856,6 +862,7 @@ async function runProcess(text) {
   if (!captureOpen) return;
 
   const adds = actions.filter((a) => a.type === 'add' && a.text);
+  if (planAll) for (const a of adds) a.date = addDays(todayKey(), 1);
   const other = actions.filter((a) => a.type !== 'add');
 
   if (!adds.length && !other.length) {
@@ -1251,7 +1258,137 @@ function renderHome() {
   const first = displayName().split(/\s+/)[0];
   $('#greeting').textContent = `${greeting()}${first ? `, ${first}` : ''} · ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`;
   renderHeadline(todays, doneCount);
+  renderDaySummary();
 }
+
+// ---------- day summary ----------
+// After the summary time (7 PM unless changed in Settings), Home shows how the
+// day went, between the headline and the mic, until midnight.
+const SUMMARY_HIDE_KEY = 'blip.summary.hidden';
+const SUMMARY_SEEN_KEY = 'blip.summary.seen';
+const summaryTime = () => settings.summaryTime || S.DEFAULT_TIME;
+function summaryDue(now = new Date()) {
+  const at = S.summaryAt(summaryTime(), now);
+  return Boolean(at && now >= at);
+}
+function todaySummary() {
+  const today = todayKey();
+  return S.daySummary(tasks, today, addDays(today, 1), displayName().split(/\s+/)[0]);
+}
+// Collapsed to a pill by default; tap to open the full summary.
+let summaryOpen = false;
+let summaryAnytime = false; // opened from the + menu before the usual time
+function renderDaySummary() {
+  const box = $('#day-summary');
+  const today = todayKey();
+  const show = (summaryDue() || summaryAnytime) && localStorage.getItem(SUMMARY_HIDE_KEY) !== today;
+  box.hidden = !show;
+  $('#view-home').classList.toggle('summary-on', show);
+  if (!show) { $('#view-home').classList.remove('summary-expanded'); return false; }
+  const s = todaySummary();
+  box.classList.toggle('open', summaryOpen);
+  $('#view-home').classList.toggle('summary-expanded', summaryOpen);
+  const fresh = localStorage.getItem(SUMMARY_SEEN_KEY) !== today;
+  box.classList.toggle('fresh', fresh);
+  const li = (t) => `<li>${esc(t.text)}${t.time ? ` <span class="muted">· ${esc(fmtTime(t.time))}</span>` : ''}</li>`;
+  const more = (list, n) => (list.length > n ? `<li class="muted">and ${list.length - n} more</li>` : '');
+  const left = s.open.length + s.older.length;
+  const n = s.next[0];
+  const gist = s.total ? `${s.done.length} of ${s.total} done` : 'A quiet day';
+  box.innerHTML = `
+    <button class="ds-pill" type="button" data-ds="toggle" aria-expanded="${summaryOpen}">
+      <span class="ds-spark" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l1.9 5.1L19 11l-5.1 1.9L12 18l-1.9-5.1L5 11l5.1-1.9z"/></svg></span>
+      <span class="ds-pill-text"><b>Your day, summarized</b><span>${esc(gist)}</span></span>
+      ${fresh && !summaryOpen ? '<span class="ds-new" aria-label="New"></span>' : ''}
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div class="ds-body"${summaryOpen ? '' : ' hidden'}>
+    <h3 class="ds-title">${esc(s.title.join(' '))}</h3>
+    <p class="ds-line">${esc(s.line)}</p>
+    <div class="ds-stats">
+      <div class="ds-stat good"><b>${s.done.length}</b><span>Done</span></div>
+      <div class="ds-stat"><b>${left}</b><span>Still open</span></div>
+      <div class="ds-stat"><b>${s.next.length}</b><span>Tomorrow</span></div>
+    </div>
+    ${s.done.length ? `<p class="ds-label">Done today</p><ul class="ds-list done">${s.done.slice(0, 3).map(li).join('')}${more(s.done, 3)}</ul>` : ''}
+    ${s.open.length ? `<p class="ds-label">Still open</p><ul class="ds-list">${s.open.slice(0, 3).map(li).join('')}${more(s.open, 3)}</ul>` : ''}
+    ${n ? `<p class="ds-label">First up tomorrow</p><p class="ds-next">${esc(n.text)}${n.time ? ` <span class="muted">· ${esc(fmtTime(n.time))}</span>` : ''}</p>` : ''}
+    <div class="ds-actions">
+      ${s.open.length ? `<button class="pill-btn" type="button" data-ds="move">Move ${s.open.length} to tomorrow</button>` : ''}
+      <button class="link" type="button" data-ds="hide">Hide for today</button>
+    </div>
+    </div>`;
+  return true;
+}
+$('#day-summary').addEventListener('click', (e) => {
+  const act = e.target.closest('[data-ds]')?.dataset.ds;
+  if (act === 'toggle') {
+    summaryOpen = !summaryOpen;
+    localStorage.setItem(SUMMARY_SEEN_KEY, todayKey());
+    renderDaySummary();
+  } else if (act === 'hide') {
+    summaryAnytime = false;
+    localStorage.setItem(SUMMARY_HIDE_KEY, todayKey());
+    renderHome();
+  } else if (act === 'move') {
+    const today = todayKey();
+    const tomorrow = addDays(today, 1);
+    let n = 0;
+    for (const t of tasks) {
+      if (t.date === today && !t.done) { t.date = tomorrow; t.notified = false; t.updatedAt = Date.now(); n++; }
+    }
+    save();
+    render();
+    toast(`Moved ${n} task${n === 1 ? '' : 's'} to tomorrow`);
+  }
+});
+
+function notifySummary() {
+  const s = todaySummary();
+  toast('Your day is summarized on Home');
+  if (document.visibilityState === 'visible') { playChime(); }
+  if (ui.view === 'home') renderHome();
+  if (pushCovers()) return; // the server sends it
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const opts = {
+    body: s.notifBody,
+    icon: 'icons/app-icon-192.png',
+    badge: 'icons/app-icon-192.png',
+    tag: `blip-summary-${todayKey()}`,
+    data: { taskId: `summary-${todayKey()}` },
+  };
+  navigator.serviceWorker?.ready.then((reg) => reg.showNotification(s.notifTitle, opts)).catch(() => {});
+}
+
+// Settings: Off, a few evening times, or any time.
+const SUMMARY_CHOICES = ['off', '18:00', '19:00', '20:00', '21:00'];
+function renderSummaryOptions() {
+  const cur = summaryTime();
+  $('#summary-opts').innerHTML = SUMMARY_CHOICES.map((v) => {
+    const on = v === cur;
+    return `<button type="button" class="remind-chip${on ? ' on' : ''}" data-summary="${v}" aria-pressed="${on}">${v === 'off' ? 'Off' : fmtTime(v)}</button>`;
+  }).join('');
+  $('#summary-time').value = cur === 'off' ? '' : cur;
+  $('#summary-hint').textContent = cur === 'off'
+    ? 'Off. Turn it on to see how your day went each evening.'
+    : `Every day at ${fmtTime(cur)}, Blip sums up your day on Home and sends you a notification.`;
+}
+function saveSummaryTime(v) {
+  settings.summaryTime = v;
+  saveSettings();
+  renderSummaryOptions();
+  scheduleNextReminder();
+  if (ui.view === 'home') renderHome();
+  if (sb && profile && profile.mode !== 'guest') sb.auth.updateUser({ data: { blip_summary: v } }).catch(() => {});
+  toast(v === 'off' ? 'Day summary off' : `Day summary at ${fmtTime(v)}`);
+}
+$('#summary-opts').addEventListener('click', (e) => {
+  const v = e.target.closest('[data-summary]')?.dataset.summary;
+  if (v) saveSummaryTime(v);
+});
+$('#summary-time').addEventListener('change', (e) => {
+  if (/^\d\d:\d\d$/.test(e.target.value)) saveSummaryTime(e.target.value);
+});
 
 // ---------- home headline ----------
 // Counts app opens so the headline can tell a first visit, a return after a
@@ -1546,6 +1683,14 @@ function checkReminders() {
       if (f.min === 0) { t.notified = true; changed = true; }
     }
   }
+  const sumAt = S.summaryAt(summaryTime());
+  const sumKey = `summary|${todayKey()}`;
+  if (sumAt && now >= sumAt.getTime() && !remindSent[sumKey]) {
+    remindSent[sumKey] = now;
+    sentChanged = true;
+    if (now - sumAt.getTime() < REMIND_GRACE_MS) notifySummary();
+    else if (ui.view === 'home') renderHome();
+  }
   if (sentChanged) {
     // Forget marks older than two days so the list stays small.
     for (const [k, v] of Object.entries(remindSent)) if (now - v > 2 * 864e5) delete remindSent[k];
@@ -1565,6 +1710,8 @@ function scheduleNextReminder() {
       if (!remindSent[sentKey(t, f)] && f.at < next) next = f.at;
     }
   }
+  const sumAt = S.summaryAt(summaryTime());
+  if (sumAt && !remindSent[`summary|${todayKey()}`] && sumAt.getTime() < next) next = sumAt.getTime();
   queuePushSchedule();
   if (next === Infinity) return;
   // Browsers cap timers near 24.8 days; re-arm at most daily.
@@ -1658,6 +1805,12 @@ async function syncPushSchedule() {
       const fireAt = new Date(f.at).toISOString();
       want.set(`${t.id}|${fireAt}`, { task_id: t.id, fire_at: fireAt, offset_min: f.min, title, body });
     }
+  }
+  const sumAt = S.summaryAt(summaryTime());
+  if (sumAt && sumAt.getTime() > now) {
+    const s = todaySummary();
+    const fireAt = sumAt.toISOString();
+    want.set(`summary-${todayKey()}|${fireAt}`, { task_id: `summary-${todayKey()}`, fire_at: fireAt, offset_min: 0, title: s.notifTitle, body: s.notifBody });
   }
   try {
     const { data: have, error } = await sb.from('reminders')
@@ -1809,6 +1962,7 @@ $('#chime-opts').addEventListener('click', (e) => {
 
 // ---------- reminder settings ----------
 function renderRemindOptions() {
+  renderSummaryOptions();
   renderChimeOptions();
   renderAddSoundOptions();
   const picked = remindOffsets();
@@ -2054,6 +2208,10 @@ async function fromSession(session) {
   });
   // An avatar picked on another device comes with the account.
   // Reminder choices follow the account too.
+  if (typeof meta.blip_summary === 'string' && meta.blip_summary !== settings.summaryTime) {
+    settings.summaryTime = meta.blip_summary;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }
   if (Array.isArray(meta.blip_remind) && !Array.isArray(settings.remindOffsets)) {
     settings.remindOffsets = R.extraOffsets(meta.blip_remind);
     saveSettings();
@@ -2871,7 +3029,7 @@ function initDevice() {
     sizeComposer();
     processText(v);
   });
-  $('#composer-plus').addEventListener('click', () => composerInput.focus());
+  initPlusMenus();
   // Version pickers (phone composer and desktop quick-add). A look-and-feel
   // choice only: every option uses the same parser.
   const MODELS = [
@@ -2879,7 +3037,7 @@ function initDevice() {
     ['blip-1.0', 'Blip 1.0', 'Classic'],
     ['blip-1.0-beta', 'Blip 1.0 beta', 'Early preview'],
   ];
-  const pickers = [...document.querySelectorAll('.model-pick')].map((el) => ({
+  const pickers = [...document.querySelectorAll('.model-pick:not(.plus-pick)')].map((el) => ({
     el, pill: el.querySelector('.model-btn'), menu: el.querySelector('.model-menu'), name: el.querySelector('.model-name'),
   }));
   const currentModel = () => (MODELS.find((m) => m[0] === settings.model) || MODELS[0]);
@@ -3157,6 +3315,101 @@ function initInvite() {
     catch { $('#invite-url').select(); document.execCommand('copy'); }
     toast('Invite link copied');
   });
+}
+
+// ---------- + shortcuts ----------
+const PLUS_ICONS = {
+  summary: '<path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',
+  tomorrow: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4M10 15h4M12 13v4"/>',
+  note: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>',
+  move: '<path d="M4 12h12M12 6l6 6-6 6"/><path d="M20 5v14"/>',
+};
+function plusItems() {
+  const today = todayKey();
+  const open = tasks.filter((t) => t.date === today && !t.done).length;
+  return [
+    { id: 'summary', label: 'Summarize today', sub: 'See how your day is going' },
+    { id: 'tomorrow', label: 'Plan tomorrow', sub: 'Speak, and it all goes on tomorrow' },
+    { id: 'note', label: 'New note', sub: 'Dictate a note instead of a task' },
+    { id: 'move', label: 'Move unfinished to tomorrow', sub: open ? `${open} open task${open === 1 ? '' : 's'} today` : 'Nothing open today', off: !open },
+  ];
+}
+function closePlusMenus() {
+  for (const b of $$('#composer-plus, #quick-plus')) b.setAttribute('aria-expanded', 'false');
+  for (const m of $$('.plus-menu')) m.hidden = true;
+}
+function togglePlusMenu(btn) {
+  const menu = btn.parentElement.querySelector('.plus-menu');
+  const open = menu.hidden;
+  closePlusMenus();
+  if (!open) return;
+  menu.innerHTML = plusItems().map((it) => `
+    <li class="model-opt plus-opt${it.off ? ' off' : ''}" role="menuitem" tabindex="0" data-plus="${it.id}"${it.off ? ' aria-disabled="true"' : ''}>
+      <span class="plus-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true">${PLUS_ICONS[it.id]}</svg></span>
+      <span><b>${esc(it.label)}</b><small>${esc(it.sub)}</small></span>
+    </li>`).join('');
+  menu.hidden = false;
+  btn.setAttribute('aria-expanded', 'true');
+  menu.querySelector('[data-plus]')?.focus();
+}
+function runPlus(id) {
+  closePlusMenus();
+  const today = todayKey();
+  if (id === 'summary') {
+    summaryOpen = true;
+    summaryAnytime = true;
+    localStorage.setItem(SUMMARY_SEEN_KEY, today);
+    if (localStorage.getItem(SUMMARY_HIDE_KEY) === today) localStorage.removeItem(SUMMARY_HIDE_KEY);
+    showView('home');
+    renderHome();
+    $('#day-summary').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } else if (id === 'tomorrow') {
+    openCapture('voice');
+    planTomorrow = true;
+    const planned = tasks.filter((t) => t.date === addDays(today, 1) && !t.done);
+    if (!$('#cap-listen').hidden) $('#cap-listen h2').textContent = 'What’s on for tomorrow?';
+    else setCapTitle('Plan tomorrow');
+    $('#cap-live').textContent = planned.length
+      ? `Already planned: ${planned.slice(0, 3).map((t) => t.text).join(', ')}${planned.length > 3 ? ` and ${planned.length - 3} more` : ''}`
+      : 'Nothing planned yet. Say everything for tomorrow.';
+  } else if (id === 'note') {
+    newNote();
+    if (SpeechRec) setTimeout(() => startDictation($('#nf-body'), $('#nf-mic')), 150);
+  } else if (id === 'move') {
+    const tomorrow = addDays(today, 1);
+    let n = 0;
+    for (const t of tasks) {
+      if (t.date === today && !t.done) { t.date = tomorrow; t.notified = false; t.updatedAt = Date.now(); n++; }
+    }
+    if (!n) { toast('Nothing open today'); return; }
+    save();
+    render();
+    toast(`Moved ${n} task${n === 1 ? '' : 's'} to tomorrow`);
+  }
+}
+function initPlusMenus() {
+  for (const btn of $$('#composer-plus, #quick-plus')) {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); togglePlusMenu(btn); });
+  }
+  for (const menu of $$('.plus-menu')) {
+    menu.addEventListener('click', (e) => {
+      const li = e.target.closest('[data-plus]');
+      if (li && li.getAttribute('aria-disabled') !== 'true') runPlus(li.dataset.plus);
+    });
+    menu.addEventListener('keydown', (e) => {
+      const li = e.target.closest('[data-plus]');
+      if (e.key === 'Escape') { closePlusMenus(); return; }
+      if ((e.key === 'Enter' || e.key === ' ') && li) { e.preventDefault(); if (li.getAttribute('aria-disabled') !== 'true') runPlus(li.dataset.plus); }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const items = [...menu.querySelectorAll('[data-plus]')];
+        const i = items.indexOf(li);
+        items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+      }
+    });
+  }
+  document.addEventListener('click', (e) => { if (!e.target.closest('.plus-pick')) closePlusMenus(); });
+  $('#nf-mic').addEventListener('click', () => startDictation($('#nf-body'), $('#nf-mic')));
 }
 
 // ---------- tasks: open, edit, save ----------
@@ -3458,6 +3711,7 @@ document.addEventListener('visibilitychange', () => {
 
 // Tapping a notification opens that task.
 function openTaskFromNotification(id) {
+  if (String(id).startsWith('summary-')) { summaryOpen = true; showView('home'); renderHome(); return; }
   if (!tasks.some((x) => x.id === id)) return;
   editingId = id;
   ui.backTo = 'home';
