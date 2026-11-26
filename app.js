@@ -1547,16 +1547,16 @@ const CHIMES = {
   soft:    { label: 'Soft',   notes: [[523, 0, 0.22], [784, 0.2, 0.34]], wave: 'triangle', gain: 0.2 },
   bright:  { label: 'Bright', notes: [[1047, 0, 0.08], [1319, 0.09, 0.08], [1568, 0.18, 0.2]], wave: 'sine', gain: 0.18 },
   // Long tones: a few seconds each, for reminders you can't miss.
-  sunrise: { label: 'Sunrise', long: true, wave: 'bell', gain: 0.16,
-    notes: [...repeatPhrase([[523, 0, 1.4], [659, 0.26, 1.4], [784, 0.52, 1.4], [1047, 0.78, 1.6]], 2.2, 2, [0.6, 0.85]),
-      [523, 4.4, 2.6], [659, 4.66, 2.6], [784, 4.92, 2.6], [1047, 5.18, 3.0], [1319, 5.44, 3.0, 0.7]] },
   marimba: { label: 'Marimba', long: true, wave: 'marimba', gain: 0.24,
     notes: repeatPhrase([[659, 0, 0.5], [784, 0.17, 0.5], [880, 0.34, 0.5], [784, 0.51, 0.5], [659, 0.68, 0.5], [523, 0.85, 0.9]], 1.6, 4, [0.7, 0.85, 1, 1]) },
-  lullaby: { label: 'Lullaby', long: true, wave: 'triangle', gain: 0.22,
-    notes: [[392, 0, 0.6], [659, 0.5, 0.6], [587, 1.0, 0.6], [523, 1.5, 0.6], [587, 2.0, 0.6], [659, 2.5, 0.6], [784, 3.0, 1.3],
-      [392, 4.0, 0.6], [659, 4.5, 0.6], [587, 5.0, 0.6], [523, 5.5, 0.6], [494, 6.0, 0.6], [523, 6.5, 1.8]] },
-  pulse:   { label: 'Pulse', long: true, wave: 'sine', gain: 0.2,
+  pulse:   { label: 'Pulse', long: true, wave: 'sine', gain: 0.52,
     notes: repeatPhrase([[1047, 0, 0.12], [1319, 0.15, 0.2]], 0.8, 8, [0.45, 0.55, 0.65, 0.75, 0.85, 1, 1, 1]) },
+  // A rising three-note call that speeds up and gets louder.
+  escalate: { label: 'Escalate', long: true, wave: 'triangle', gain: 0.52, notes: (() => {
+    const out = []; let t = 0; let gap = 0.75;
+    for (let i = 0; i < 9; i++) { const g = 0.5 + i * 0.07; out.push([659, t, 0.14, g], [880, t + 0.12, 0.14, g], [1319, t + 0.24, 0.22, g]); t += gap; gap = Math.max(0.5, gap - 0.04); }
+    return out;
+  })() },
   off:     { label: 'Off', notes: [] },
 };
 let audioCtx = null;
@@ -1579,7 +1579,7 @@ function stopChime() {
   chimeNodes = [];
 }
 function playChime(name = settings.chime || 'blip') {
-  const c = CHIMES[name];
+  const c = CHIMES[name] || CHIMES.blip;
   if (!c || !c.notes.length) return;
   stopChime();
   try {
@@ -1644,7 +1644,7 @@ function buzz() {
 }
 
 function renderChimeOptions() {
-  const cur = settings.chime || 'blip';
+  const cur = CHIMES[settings.chime] ? settings.chime : 'blip';
   const chip = ([k, c]) => `<button type="button" class="remind-chip${k === cur ? ' on' : ''}" data-chime="${k}" aria-pressed="${k === cur}">${c.label}</button>`;
   const all = Object.entries(CHIMES).filter(([k]) => k !== 'off');
   $('#chime-opts').innerHTML = `<span class="chip-group">Short</span>${all.filter(([, c]) => !c.long).map(chip).join('')}`
