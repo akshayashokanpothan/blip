@@ -5,11 +5,14 @@
 // Deploy (JWT check on):
 //   supabase functions deploy tidy-titles
 // Secret it needs: ANTHROPIC_API_KEY (supabase secrets set ANTHROPIC_API_KEY=...).
+// Optional secret: AI_DAILY_LIMIT, AI calls per person per day (default 30).
+// Needs supabase/ai-usage.sql run once; without it the function never calls Claude.
 // SUPABASE_URL and SUPABASE_ANON_KEY are provided by Supabase itself.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const MODEL = 'claude-haiku-5-5';
+const DAILY_LIMIT = Math.max(1, Number(env('AI_DAILY_LIMIT')) || 30);
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
@@ -50,6 +53,11 @@ Deno.serve(async (req) => {
   if (!text || !titles.length) return json({ error: 'empty' }, 400);
   if (!env('ANTHROPIC_API_KEY')) return json({ titles }, 200);
 
+  // Daily limit per person. If the quota check fails for any reason, don't call Claude.
+  const { data: allowed, error: quotaErr } = await sb.rpc('use_ai_quota', { p_limit: DAILY_LIMIT });
+  if (quotaErr) return json({ titles, note: 'quota unavailable' });
+  if (allowed !== true) return json({ titles, capped: true });
+
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -60,14 +68,16 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 400,
+        max_tokens: 1024,
+        // Simple rewrite: keep thinking light so it stays fast and cheap.
+        output_config: { effort: 'low' },
         system: SYSTEM,
         messages: [{ role: 'user', content: `Said: ${text}\nTitles: ${JSON.stringify(titles)}` }],
       }),
     });
     if (!res.ok) return json({ titles, note: `model ${res.status}` });
     const data = await res.json();
-    const out = (data.content ?? []).map((c: { text?: string }) => c.text ?? '').join('');
+    const out = (data.content ?? []).filter((c: { type?: string }) => c.type === 'text').map((c: { text?: string }) => c.text ?? '').join('');
     const parsed = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1));
     const tidy = Array.isArray(parsed.titles) ? parsed.titles : [];
     // Same count, sensible strings; otherwise keep what the app already had.
