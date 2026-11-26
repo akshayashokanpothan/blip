@@ -115,7 +115,7 @@ function setModel(id) {
   settings.model = id;
   saveSettings();
   renderModelPickers();
-  if (!can('summary')) { summaryOpen = false; summaryAnytime = false; }
+  if (!can('summary')) { summaryOpen = false; summaryAnytime = false; summaryBuild = null; clearTimeout(summaryBuildTimer); }
   renderSummaryOptions();
   scheduleNextReminder();
   render();
@@ -1313,6 +1313,45 @@ function todaySummary() {
 // Collapsed to a pill by default; tap to open the full summary.
 let summaryOpen = false;
 let summaryAnytime = false; // opened from the + menu before the usual time
+// "Summarize today" and the first open of the day walk through a few steps
+// (reading tasks, checking done and open, writing) before the summary appears.
+let summaryBuild = null; // { step, steps } while building
+let summaryReveal = false; // fade the finished summary in once
+let summaryBuildTimer = 0;
+function summarySteps() {
+  const s = todaySummary();
+  const left = s.open.length + s.older.length;
+  const steps = [
+    { doing: s.total ? `Reading your ${s.total} task${s.total === 1 ? '' : 's'} for today` : 'Reading your list for today', done: s.total ? `Read ${s.total} task${s.total === 1 ? '' : 's'}` : 'Nothing on today’s list' },
+    { doing: 'Checking what’s done and what’s open', done: `${s.done.length} done · ${left} open` },
+  ];
+  if (!s.lite) steps.push({ doing: 'Looking ahead to tomorrow', done: s.next.length ? `${s.next.length} planned for tomorrow` : 'Tomorrow is clear' });
+  steps.push({ doing: 'Writing your summary', done: 'Summary written' });
+  if (!s.lite) steps.push({ doing: 'Finalizing your day', done: 'All set' });
+  return steps;
+}
+function buildSummary() {
+  clearTimeout(summaryBuildTimer);
+  summaryOpen = true;
+  summaryReveal = false;
+  const quick = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  summaryBuild = { step: 0, steps: summarySteps() };
+  const tick = () => {
+    if (!summaryBuild) return;
+    summaryBuild.step++;
+    if (summaryBuild.step >= summaryBuild.steps.length) {
+      summaryBuild = null;
+      summaryReveal = true;
+      renderDaySummary();
+      summaryBuildTimer = setTimeout(() => { summaryReveal = false; }, 900);
+      return;
+    }
+    renderDaySummary();
+    summaryBuildTimer = setTimeout(tick, quick ? 250 : 600 + Math.random() * 350);
+  };
+  renderDaySummary();
+  summaryBuildTimer = setTimeout(tick, quick ? 250 : 750);
+}
 function renderDaySummary() {
   const box = $('#day-summary');
   const today = todayKey();
@@ -1329,7 +1368,27 @@ function renderDaySummary() {
   const more = (list, n) => (list.length > n ? `<li class="muted">and ${list.length - n} more</li>` : '');
   const left = s.open.length + s.older.length;
   const n = s.next[0];
-  const gist = s.total ? `${s.done.length} of ${s.total} done` : 'A quiet day';
+  const gist = summaryBuild ? 'Summarizing your day…' : s.total ? `${s.done.length} of ${s.total} done` : 'A quiet day';
+  box.classList.toggle('building', Boolean(summaryBuild));
+  if (summaryBuild) {
+    const b = summaryBuild;
+    const tick = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>';
+    box.innerHTML = `
+    <button class="ds-pill" type="button" aria-expanded="true" disabled>
+      <span class="ds-spark" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l1.9 5.1L19 11l-5.1 1.9L12 18l-1.9-5.1L5 11l5.1-1.9z"/></svg></span>
+      <span class="ds-pill-text"><b>Your day, summarized</b><span>${esc(gist)}</span></span>
+    </button>
+    <div class="ds-body">
+      <ol class="ds-build" aria-live="polite">
+        ${b.steps.map((st, i) => `<li class="${i < b.step ? 'done' : i === b.step ? 'now' : 'next'}">
+          <span class="ds-step-ic">${i < b.step ? tick : i === b.step ? '<span class="ds-spin"></span>' : ''}</span>
+          <span>${esc(i < b.step ? st.done : st.doing)}${i === b.step ? '<span class="ds-dots"><i></i><i></i><i></i></span>' : ''}</span>
+        </li>`).join('')}
+      </ol>
+      <div class="ds-bar"><span style="width:${Math.round((b.step / b.steps.length) * 100)}%"></span></div>
+    </div>`;
+    return true;
+  }
   box.innerHTML = `
     <button class="ds-pill" type="button" data-ds="toggle" aria-expanded="${summaryOpen}">
       <span class="ds-spark" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l1.9 5.1L19 11l-5.1 1.9L12 18l-1.9-5.1L5 11l5.1-1.9z"/></svg></span>
@@ -1337,7 +1396,7 @@ function renderDaySummary() {
       ${fresh && !summaryOpen ? '<span class="ds-new" aria-label="New"></span>' : ''}
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
     </button>
-    <div class="ds-body"${summaryOpen ? '' : ' hidden'}>
+    <div class="ds-body${summaryReveal ? ' reveal' : ''}"${summaryOpen ? '' : ' hidden'}>
     <h3 class="ds-title">${esc(s.title.join(' '))}</h3>
     ${s.line ? `<p class="ds-line">${esc(s.line)}</p>` : ''}
     <div class="ds-stats${s.lite ? ' two' : ''}">
@@ -1358,11 +1417,16 @@ function renderDaySummary() {
 $('#day-summary').addEventListener('click', (e) => {
   const act = e.target.closest('[data-ds]')?.dataset.ds;
   if (act === 'toggle') {
-    summaryOpen = !summaryOpen;
+    // The first open of the day builds the summary; after that it opens straight away.
+    const first = !summaryOpen && localStorage.getItem(SUMMARY_SEEN_KEY) !== todayKey();
     localStorage.setItem(SUMMARY_SEEN_KEY, todayKey());
+    if (first) { buildSummary(); return; }
+    summaryOpen = !summaryOpen;
     renderDaySummary();
   } else if (act === 'hide') {
     summaryAnytime = false;
+    summaryBuild = null;
+    clearTimeout(summaryBuildTimer);
     localStorage.setItem(SUMMARY_HIDE_KEY, todayKey());
     renderHome();
   } else if (act === 'move') {
@@ -3466,12 +3530,12 @@ function runPlus(id, locked) {
   if (locked) setModel('blip-2.3');
   const today = todayKey();
   if (id === 'summary') {
-    summaryOpen = true;
     summaryAnytime = true;
     localStorage.setItem(SUMMARY_SEEN_KEY, today);
     if (localStorage.getItem(SUMMARY_HIDE_KEY) === today) localStorage.removeItem(SUMMARY_HIDE_KEY);
     showView('home');
     renderHome();
+    buildSummary();
     $('#day-summary').scrollIntoView({ behavior: 'smooth', block: 'center' });
   } else if (id === 'tomorrow') {
     openCapture('voice');

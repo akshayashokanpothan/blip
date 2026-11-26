@@ -2,6 +2,8 @@
 // Add an entry at the top when a release ships. `id` must be unique and only ever grow.
 // action: { label, go } where go is 'settings', 'tour' or a view name.
 const WHATS_NEW = [
+  { id: 18, date: '2026-11-26', tag: 'Update', title: 'Watch your summary come together',
+    body: 'Summarize today now reads your tasks, checks what’s done and open, looks at tomorrow and writes your summary step by step, then reveals it.' },
   { id: 17, date: '2026-11-26', tag: 'Feature', title: 'Each Blip model does more',
     body: 'Blip 1.0 and 1.0 beta keep to the basics: to-dos by voice or text, and reminders. Blip 2.0 adds the day summary, moving unfinished tasks and spoken lists. Blip 2.3 adds the full summary with a look at tomorrow, and Plan tomorrow. Pick a model next to the chat box.' },
   { id: 16, date: '2026-11-26', tag: 'Feature', title: 'Done and Snooze on reminders',

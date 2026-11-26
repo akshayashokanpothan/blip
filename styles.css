@@ -749,7 +749,7 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
   #view-home .home-main { display: flex; flex-direction: column; min-height: calc(100dvh - 92px); }
   #view-home .hero { order: 1; }
   #view-home .day-summary { order: 1; margin: 24px auto 0; max-width: 760px; }
-  #view-home .day-summary.open { width: 100%; margin: 22px auto 0; }
+  #view-home .day-summary.open, #view-home .day-summary.building { width: 100%; margin: 22px auto 0; }
   #view-home.summary-on .mic-wrap { padding: 16px 0 28px; }
   /* The open summary takes the mic's place; the box below still has a mic. */
   #view-home.summary-expanded .mic-wrap { display: none; }
@@ -1029,3 +1029,33 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
 .plus-lock svg { width: 16px; height: 16px; }
 .ds-stats.two { grid-template-columns: repeat(2, 1fr); }
 .remind-row.locked .summary-other { display: none; }
+/* Day summary: building steps before the summary appears */
+.day-summary.building { width: auto; margin-left: 4px; margin-right: 4px; border-radius: 22px; padding-bottom: 16px; }
+.day-summary.building .ds-pill { padding: 12px 16px 8px 12px; border-radius: 22px 22px 0 0; cursor: default; }
+.day-summary.building .ds-pill:hover { background: transparent; }
+.day-summary.building .ds-spark { animation: ds-think 1.4s linear infinite; }
+@keyframes ds-think { to { transform: rotate(360deg); } }
+.ds-build { list-style: none; margin: 6px 0 14px; padding: 0; display: grid; gap: 10px; }
+.ds-build li { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--muted); transition: color .25s ease, opacity .25s ease; }
+.ds-build li.now { color: var(--ink); font-weight: 500; }
+.ds-build li.next { opacity: .55; }
+.ds-build li.done { animation: ds-step-in .3s ease; }
+.ds-step-ic { width: 22px; height: 22px; flex: none; border-radius: 999px; display: grid; place-items: center; border: 1.5px solid var(--line); }
+.ds-build li.done .ds-step-ic { background: var(--fab); border-color: var(--fab); color: var(--fab-ink, var(--bg)); }
+.ds-build li.done .ds-step-ic svg { width: 14px; height: 14px; stroke-width: 2.6; }
+.ds-build li.now .ds-step-ic { border-color: transparent; }
+.ds-spin { width: 18px; height: 18px; border-radius: 999px; border: 2px solid color-mix(in srgb, var(--fab) 25%, transparent); border-top-color: var(--fab); animation: ds-think .8s linear infinite; }
+.ds-dots { display: inline-flex; gap: 3px; margin-left: 4px; vertical-align: middle; }
+.ds-dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; animation: breathe 1s ease-in-out infinite; }
+.ds-dots i:nth-child(2) { animation-delay: .15s; } .ds-dots i:nth-child(3) { animation-delay: .3s; }
+.ds-bar { height: 4px; border-radius: 999px; background: var(--pill); overflow: hidden; }
+.ds-bar span { display: block; height: 100%; border-radius: inherit; background: var(--fab); transition: width .5s ease; }
+@keyframes ds-step-in { from { opacity: .4; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.ds-body.reveal > * { animation: ds-reveal .45s ease both; }
+.ds-body.reveal > *:nth-child(2) { animation-delay: .06s; } .ds-body.reveal > *:nth-child(3) { animation-delay: .12s; }
+.ds-body.reveal > *:nth-child(4) { animation-delay: .18s; } .ds-body.reveal > *:nth-child(5) { animation-delay: .24s; }
+.ds-body.reveal > *:nth-child(n+6) { animation-delay: .3s; }
+@keyframes ds-reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .day-summary.building .ds-spark, .ds-spin, .ds-dots i, .ds-body.reveal > * { animation: none; }
+}
