@@ -8,7 +8,7 @@ window.BLIP_CONFIG = {
   googleSignIn: false,
   // Background reminders: paste the VAPID public key here after following
   // docs/push-setup.md. Empty means reminders only ring while Blip is open.
-  vapidPublicKey: '',
+  vapidPublicKey: 'BJySr1boLzAOnAWQbakE3d7kOAEL1jb3c7frLP8sEfAYRn_AISrLab7txKQflfdmrmHiWRRr6P7nnfd9DC2fOKs',
   // AI title polish: set to true after deploying the tidy-titles function (docs/ai-titles-setup.md).
   aiTitles: false,
 };

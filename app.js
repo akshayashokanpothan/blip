@@ -5,7 +5,7 @@
 // v2: when you sign in (Supabase keys in config.js), sync.js also keeps tasks,
 // notes and profile settings in step across your devices.
 
-const APP_VERSION = '2.3.7';
+const APP_VERSION = '2.3.8';
 
 const TASKS_KEY = 'blip.tasks.v1';
 const NOTES_KEY = 'blip.notes.v1';
@@ -1587,6 +1587,11 @@ const pushReady = () => Boolean(
   'Notification' in window && Notification.permission === 'granted'
 );
 
+// Any signed-in device keeps the account's reminder schedule up to date, even one
+// without notifications turned on (a laptop), so a task added there still
+// reaches the phone's notifications with Blip closed.
+const scheduleReady = () => Boolean(sb && CFG.vapidPublicKey && profile && profile.mode !== 'guest');
+
 function b64ToBytes(b64) {
   const pad64 = '='.repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad64).replace(/-/g, '+').replace(/_/g, '/'));
@@ -1636,14 +1641,14 @@ async function disablePush() {
 // Waits for edits to settle, then copies upcoming reminders to the server.
 function queuePushSchedule(ms = 2000) {
   try {
-    if (!push?.endpoint || !pushReady()) return;
+    if (!scheduleReady()) return;
     clearTimeout(pushTimer);
     pushTimer = setTimeout(syncPushSchedule, ms);
   } catch { /* called during startup, before sign-in is set up */ }
 }
 
 async function syncPushSchedule() {
-  if (!push.endpoint || !pushReady() || !navigator.onLine) return;
+  if (!scheduleReady() || !navigator.onLine) return;
   const now = Date.now();
   const want = new Map();
   for (const t of tasks) {
@@ -2054,7 +2059,7 @@ async function fromSession(session) {
     saveSettings();
   }
   // Signed in with notifications allowed: make sure this device gets pushes.
-  setTimeout(() => { if (pushReady()) enablePush(); }, 1500);
+  setTimeout(() => { if (pushReady()) enablePush(); queuePushSchedule(0); }, 1500);
   if (meta.blip_avatar && AVATARS[meta.blip_avatar] && !settings.avatar) {
     settings.avatar = meta.blip_avatar;
     saveSettings();

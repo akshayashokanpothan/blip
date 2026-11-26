@@ -2,6 +2,9 @@
 // Add an entry at the top when a release ships. `id` must be unique and only ever grow.
 // action: { label, go } where go is 'settings', 'tour' or a view name.
 const WHATS_NEW = [
+  { id: 12, date: '2026-11-26', tag: 'Feature', title: 'Reminders when Blip is closed',
+    body: 'Reminders now reach your phone even when Blip is closed. Allow notifications once on each device to turn it on.',
+    action: { label: 'Open Settings', go: 'settings' } },
   { id: 11, date: '2026-11-26', tag: 'Fix', title: 'Sync you can trust',
     body: 'Blip now does a full sync check every 15 minutes and tells you if a device needs you to sign in again. See details and Sync now in Settings.',
     action: { label: 'Open Settings', go: 'settings' } },
