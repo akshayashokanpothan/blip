@@ -4,6 +4,10 @@ const assert = require('assert');
 const createBlipSync = require('../sync.js');
 
 // ----- fake backend: tables, server timestamps, realtime fan-out -----
+const NOT_NULL = {
+  tasks: ['text', 'notes', 'time', 'end_time', 'slot', 'priority', 'done', 'reminder', 'repeat', 'created_at', 'updated_at', 'deleted'],
+  notes: ['title', 'body', 'created_at', 'edited_at', 'updated_at', 'deleted'],
+};
 function fakeServer() {
   const tables = { tasks: new Map(), notes: new Map(), user_settings: new Map() };
   const listeners = [];
@@ -16,8 +20,18 @@ function fakeServer() {
       from(table) {
         const t = tables[table];
         return {
-          async upsert(rows) {
+          async upsert(rows, opts = {}) {
             if (down) return { error: new Error('network down') };
+            // Like PostgREST: a bulk upsert sends the union of all rows' columns,
+            // and a column a row leaves out becomes NULL unless defaultToNull is false.
+            const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))];
+            if (opts.defaultToNull !== false) {
+              for (const r of rows) for (const c of cols) {
+                if (!(c in r) && NOT_NULL[table]?.includes(c)) {
+                  return { error: new Error(`null value in column "${c}" of relation "${table}" violates not-null constraint`) };
+                }
+              }
+            }
             for (const r of rows) {
               const key = table === 'user_settings' ? r.user_id : `${r.user_id}:${r.id}`;
               const row = { ...(t.get(key) || {}), ...r, server_updated_at: stamp() };
@@ -154,6 +168,16 @@ const settle = () => wait(1000); // longer than the flush debounce
   assert.deepStrictEqual(phone.tasks.map((t) => t.id).sort(), ['t1', 't2', 't3'], 'restored on sign-in');
   assert.ok(server.tables.tasks.size === 3 && [...server.tables.tasks.values()].every((r) => !r.deleted), 'sign-out did not delete server data');
 
-  console.log('All 7 sync scenarios passed.');
+  // 8. A delete and an edit in the same upload (e.g. tapping the bin, then
+  // ticking another task) must both reach the other device.
+  phone.tasks = phone.tasks.filter((t) => t.id !== 't3');
+  phone.tasks.find((t) => t.id === 't1').text = 'Buy oat milk';
+  phone.sync.changed('tasks');
+  await settle();
+  assert.strictEqual(phone.sync.pending, 0, 'mixed upload drained');
+  assert.ok(!laptop.tasks.some((t) => t.id === 't3'), 'delete arrived');
+  assert.strictEqual(laptop.tasks.find((t) => t.id === 't1').text, 'Buy oat milk', 'edit arrived with the delete');
+
+  console.log('All 8 sync scenarios passed.');
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });
