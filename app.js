@@ -376,6 +376,43 @@ function extractWhen(s, now = new Date()) {
   return { text, date, time, endTime, slot: time ? '' : slot };
 }
 
+// ---------- title tidy-up ----------
+// Light offline grammar fixes for spoken titles: "home concrete of Akshay" ->
+// "Akshay's home concrete", "birthday of mom" -> "Mom's birthday", doubled
+// words, and "i" -> "I". Only safe, common patterns; the AI path handles the rest.
+const KIN = 'mom|mum|mother|dad|father|parents|sister|brother|sis|bro|wife|husband|son|daughter|kids|baby|grandma|grandpa|grandmother|grandfather|uncle|aunt|aunty|auntie|cousin|nephew|niece|friend|boss|manager|team|client|neighbour|neighbor|teacher|doctor';
+const OWNED = new Set(('home house flat apartment room office place car bike scooter phone laptop computer bag keys wallet birthday party wedding anniversary '
+  + 'gift present cake appointment meeting interview exam test results report project presentation documents docs files paperwork papers '
+  + 'bill bills rent salary invoice payment fees school class homework assignment medicine medicines prescription tablets ticket tickets '
+  + 'passport visa license licence insurance loan account order parcel package delivery dog cat pet plants garden concrete construction '
+  + 'renovation repair repairs plumbing wiring painting work job resume cv portfolio website app design proposal contract agreement').split(' '));
+const VERBS = new Set(('call text message email mail ping ring meet see visit buy get order pick collect drop send pay book check fix clean wash '
+  + 'finish complete submit review prepare plan schedule cancel renew sign print bring take make write read update share confirm remind ask tell '
+  + 'start continue arrange organise organize sort file return deliver attend join celebrate wish').split(' '));
+function tidyTitle(text) {
+  let s = text.replace(/\b(\w+)(\s+\1\b)+/gi, '$1').replace(/\bi\b/g, 'I').replace(/\s+/g, ' ').trim();
+  const m = s.match(new RegExp(`^(.*?)\\b((?:\\w+\\s+){0,2}\\w+)\\s+of\\s+(my\\s+|our\\s+)?(${KIN}|[A-Z][a-z]+)$`, 'i'));
+  if (m) {
+    const [, before, thing, mine = '', owner] = m;
+    const isKin = new RegExp(`^(${KIN})$`, 'i').test(owner);
+    const isName = /^[A-Z]/.test(owner) && !isKin;
+    let words = thing.split(/\s+/);
+    let verb = before.trim();
+    // Keep a leading action word in front: "buy gift of mom" -> "Buy mom's gift".
+    if (!verb && VERBS.has(words[0].toLowerCase()) && words.length > 1) {
+      const n = /^(up|off|out|in)$/i.test(words[1]) && words.length > 2 ? 2 : 1;
+      verb = words.slice(0, n).join(' '); words = words.slice(n);
+    }
+    const owns = words.some((w) => OWNED.has(w.toLowerCase())) && words.every((w) => /^[a-z]/.test(w) || words.length === 1);
+    if (owns && (isKin || isName) && !/^(the|a|an)$/i.test(words[0])) {
+      const who = isKin ? owner.toLowerCase() : owner;
+      const poss = isKin && /s$/i.test(who) ? `${who}'` : `${who}'s`;
+      s = `${verb ? verb + ' ' : ''}${mine.toLowerCase()}${poss} ${words.join(' ')}`;
+    }
+  }
+  return s.replace(/^./, (c) => c.toUpperCase());
+}
+
 function parseLocal(input) {
   const actions = [];
   for (const raw of splitItems(input)) {
@@ -407,7 +444,7 @@ function parseLocal(input) {
     let text = when.text.replace(/\s+/g, ' ').replace(/^\s*(on|by|at|in)\s+/i, '')
       .replace(/\s+(on|by|at|in|for)\s*$/i, '').trim();
     for (let i = 0; i < 2; i++) text = text.replace(FILLER, '');
-    text = text.replace(/^./, (c) => c.toUpperCase()).trim();
+    text = tidyTitle(text.trim());
     if (text) {
       actions.push({
         type: 'add',
@@ -438,6 +475,7 @@ async function parseWithLLM(input, apiKey) {
     '{"type":"rename","match":"existing task","text":"new text"}',
     'Split separate tasks into separate add actions. Fix obvious speech-recognition errors. Mark urgent or important items as high priority, things with no rush as low, and everything else as medium.',
     'Only set date, time or slot when the speaker said them. Never guess a time. Use null when unsure.',
+    'Task text is a clean, natural, grammatical title in the speaker\'s language: reorder awkward speech ("home concrete of Akshay" -> "Akshay\'s home concrete", "birthday of mom" -> "Mom\'s birthday"), drop filler, keep names and meaning, never add details that weren\'t said.',
     'Speakers correct themselves ("tomorrow, sorry, today", "at 5 no 6", "Monday actually Tuesday", "not today but tomorrow"): the later value wins, and the slip and words like "sorry" never go in the task text.',
     ...(new Date().getHours() < 4 ? ['It is past midnight: "tomorrow" means the coming day, which is today\'s date, and "tonight" means today.'] : []),
     `Today is ${today}. Tomorrow is ${addDays(today, 1)}.`,
@@ -754,6 +792,25 @@ async function processText(text) {
   }
 }
 
+// Signed-in users get grammar-tidied titles from Blip's server (Claude). It only
+// rewrites titles, never dates or times, and if it's slow, missing or offline the
+// offline titles stay as they are.
+let tidyOff = false;
+async function tidyWithAI(text, actions) {
+  const adds = actions.filter((a) => a.type === 'add' && a.text);
+  if (tidyOff || !adds.length || !sb || !profile || profile.mode === 'guest' || !navigator.onLine) return;
+  try {
+    const call = sb.functions.invoke('tidy-titles', { body: { text, titles: adds.map((a) => a.text) } });
+    const res = await Promise.race([call, wait(2500).then(() => null)]);
+    if (!res) return;
+    if (res.error) { if ([401, 404].includes(res.error.context?.status)) tidyOff = true; return; }
+    const out = res.data?.titles;
+    if (Array.isArray(out) && out.length === adds.length) {
+      adds.forEach((a, i) => { if (typeof out[i] === 'string' && out[i].trim()) a.text = out[i].trim(); });
+    }
+  } catch { /* keep the offline titles */ }
+}
+
 async function runProcess(text) {
   captureOpen = true;
   $('#capture').hidden = false;
@@ -770,6 +827,7 @@ async function runProcess(text) {
     warning = ` (AI parse failed: ${err.message}; used the offline parser)`;
     actions = parseLocal(text);
   }
+  if (!settings.apiKey) await tidyWithAI(text, actions);
   await wait(Math.max(0, 600 - (Date.now() - started)));
   if (!captureOpen) return;
 
