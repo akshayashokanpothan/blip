@@ -44,6 +44,7 @@ function markPreview() {
 }
 const MODEL = 'claude-haiku-5-5';
 const THEMES = ['light', 'dark'];
+const PALETTES = ['blip', 'meld'];
 
 // ---------- storage ----------
 function loadJSON(key, fallback) {
@@ -2879,8 +2880,11 @@ function initDevice() {
 function setTheme(name = settings.theme) {
   if (!THEMES.includes(name)) name = 'light';
   root.dataset.theme = name;
+  const pal = PALETTES.includes(settings.palette) ? settings.palette : 'blip';
+  root.dataset.palette = pal;
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', name === 'dark' ? '#262624' : '#1B3B2B');
+  const bar = pal === 'meld' ? (name === 'dark' ? '#121214' : '#BC4989') : (name === 'dark' ? '#262624' : '#1B3B2B');
+  if (meta) meta.setAttribute('content', bar);
   if (settings.theme !== name) {
     settings.theme = name;
     saveSettings();
@@ -2892,6 +2896,19 @@ function markTheme() {
   for (const b of $$('[data-theme-pick]')) {
     b.setAttribute('aria-pressed', String(b.dataset.themePick === settings.theme));
   }
+  const pal = PALETTES.includes(settings.palette) ? settings.palette : 'blip';
+  for (const b of $$('[data-palette-pick]')) {
+    b.setAttribute('aria-pressed', String(b.dataset.palettePick === pal));
+  }
+}
+
+for (const b of $$('[data-palette-pick]')) {
+  b.addEventListener('click', () => {
+    settings.palette = b.dataset.palettePick;
+    saveSettings();
+    setTheme();
+    toast(`Style: ${settings.palette === 'meld' ? 'Meld' : 'Blip'}`);
+  });
 }
 
 for (const b of $$('[data-theme-pick]')) {

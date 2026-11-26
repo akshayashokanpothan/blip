@@ -83,6 +83,55 @@
   --fab-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
 }
 
+/* ---------- Meld style (from the Meld design system) ----------
+   Magenta #BC4989 and indigo #39409A on neutral surfaces, Space Grotesk throughout.
+   Works with both Light and Dark: <html data-palette="meld" data-theme="..."> */
+[data-palette="meld"] {
+  --bg: #F7F7F5;
+  --card: #FFFFFF;
+  --ink: #171717;
+  --muted: #5A5A5A;
+  --line: #E5E5E0;
+  --border: #D4D4D0;
+  --pill: #F7E8F0;
+  --soft: #F2DCE8;
+  --fab: #BC4989;
+  --fab-ink: #FFFFFF;
+  --accent: #39409A;
+  --done: #39409A;
+  --warn: #D97706;
+  --ok: #059669;
+  --focus: #315CFF;
+  --red: #DC2626;
+  --font: "Space Grotesk", Arial, sans-serif;
+  --display: "Space Grotesk", Arial, sans-serif;
+  --shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  --fab-shadow: 0 10px 24px rgba(188, 73, 137, 0.30);
+}
+[data-palette="meld"][data-theme="dark"] {
+  --bg: #121214;
+  --card: #1C1C1F;
+  --ink: #F7F7F5;
+  --muted: #A3A39F;
+  --line: #2C2C30;
+  --border: #3E3E44;
+  --pill: #2E2329;
+  --soft: #3A2A33;
+  --fab: #F472B6;
+  --fab-ink: #171717;
+  --accent: #A5AAF5;
+  --done: #A5AAF5;
+  --warn: #FCD34D;
+  --ok: #6EE7B7;
+  --focus: #A5AAF5;
+  --red: #FCA5A5;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A3A39F' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  --shadow: none;
+  --fab-shadow: 0 10px 24px rgba(244, 114, 182, 0.22);
+}
+.swatch.pal-blip { background: linear-gradient(135deg, #F8FAF7 50%, #1B3B2B 50%); }
+.swatch.pal-meld { background: linear-gradient(135deg, #BC4989 50%, #39409A 50%); }
+
 /* ---------- base ---------- */
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
