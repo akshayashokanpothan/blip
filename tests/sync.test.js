@@ -32,6 +32,10 @@ function fakeServer() {
                 }
               }
             }
+            // Like Postgres: one row breaking a check constraint fails the whole statement.
+            if (rows.some((r) => r.priority && !['high', 'medium', 'low'].includes(r.priority))) {
+              return { error: { code: '23514', message: 'new row for relation "tasks" violates check constraint "tasks_priority_check"' } };
+            }
             for (const r of rows) {
               const key = table === 'user_settings' ? r.user_id : `${r.user_id}:${r.id}`;
               const row = { ...(t.get(key) || {}), ...r, server_updated_at: stamp() };
@@ -93,6 +97,7 @@ function device(server, name) {
     },
   });
   app.sync = sync;
+  app._mem = mem;
   app.name = name;
   return app;
 }
@@ -178,6 +183,43 @@ const settle = () => wait(1000); // longer than the flush debounce
   assert.ok(!laptop.tasks.some((t) => t.id === 't3'), 'delete arrived');
   assert.strictEqual(laptop.tasks.find((t) => t.id === 't1').text, 'Buy oat milk', 'edit arrived with the delete');
 
-  console.log('All 8 sync scenarios passed.');
+  // 9. One row the database refuses must not hold back the others.
+  phone.tasks.push({ id: 'bad', text: 'Broken', date: '2026-11-26', priority: 'urgent!!', created: 9 });
+  phone.tasks.push({ id: 't4', text: 'Return earphone case', date: '2026-11-26', priority: 'high', created: 9 });
+  phone.sync.changed('tasks');
+  await settle();
+  assert.ok(laptop.tasks.some((t) => t.id === 't4'), 'good row arrived despite a bad one');
+  assert.ok(!server.tables.tasks.has('user-1:bad'), 'bad row refused');
+  assert.ok(/check constraint/.test(phone.sync.lastError), 'refusal is reported');
+  phone.tasks = phone.tasks.filter((t) => t.id !== 'bad');
+  phone.sync.changed('tasks');
+  await settle();
+
+  // 10. Repair: a device whose snapshot says "uploaded" for rows the account
+  // never got (the stuck-sync case) re-sends them, and newer server edits win.
+  laptop.tasks.push({ id: 'lost', text: 'Democrats creation', date: '2026-11-26', priority: 'medium', created: 10, updatedAt: 10 });
+  // Pretend it was marked synced without reaching the server:
+  await laptop.sync.stop();
+  const mem = laptop._mem;
+  const key = [...mem.keys()].find((k) => k.startsWith('blip.sync.'));
+  const state = JSON.parse(mem.get(key));
+  const fpRow = { id: 'lost', text: 'Democrats creation', notes: '', date: '2026-11-26', time: '', end_time: '', slot: '', priority: 'medium', done: false, reminder: false, repeat: 'none', created_at: 10, deleted: false };
+  state.snap.tasks.lost = JSON.stringify(fpRow);
+  mem.set(key, JSON.stringify(state));
+  await laptop.sync.start('user-1');
+  await settle();
+  assert.ok(!server.tables.tasks.has('user-1:lost'), 'stuck row is not sent by a normal sync');
+  phone.tasks.find((t) => t.id === 't4').done = true; // newer edit on the phone
+  phone.sync.changed('tasks');
+  await settle();
+  const res = await laptop.sync.repair();
+  await settle();
+  assert.ok(res.ok, 'repair finished');
+  assert.ok(server.tables.tasks.has('user-1:lost'), 'repair uploaded the missing task');
+  assert.ok(phone.tasks.some((t) => t.id === 'lost'), 'and the phone got it');
+  assert.strictEqual(laptop.tasks.find((t) => t.id === 't4').done, true, 'newer phone edit kept');
+  assert.strictEqual(server.tables.tasks.get('user-1:t4').done, true, 'repair did not overwrite newer data');
+
+  console.log('All 10 sync scenarios passed.');
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

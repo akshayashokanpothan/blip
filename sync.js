@@ -96,19 +96,23 @@
     let retryTimer = null;
     let flushing = null;
     let status = 'off';
+    let lastError = '';
+    const errText = (err) => String(err?.message || err?.error_description || err?.code || err || 'unknown error').slice(0, 160);
 
     const stateKey = () => `blip.sync.${userId}`;
     const emptyState = () => ({
       cursor: { tasks: null, notes: null, user_settings: null },
       snap: { tasks: {}, notes: {}, settings: null },
       outbox: {},
+      refused: {},
       lastSynced: 0,
     });
     const saveState = () => storage.setItem(stateKey(), JSON.stringify(state));
-    const setStatus = (s) => {
-      if (s === status) return;
+    const setStatus = (s, force = false) => {
+      if (s === status && !force) return;
       status = s;
-      onStatus(s, state?.lastSynced || 0);
+      if (s === 'synced') lastError = '';
+      onStatus(s, state?.lastSynced || 0, lastError);
     };
 
     // ----- local changes -> outbox -----
@@ -193,11 +197,24 @@
           for (const [group, items] of Object.entries(byTable)) {
             const table = group.split('|')[0];
             const onConflict = table === 'user_settings' ? 'user_id' : TABLES[table].key;
-            const { error } = await client.from(table).upsert(items.map(([, r]) => r), { onConflict, defaultToNull: false });
-            if (error) throw error;
-            // Drop what was sent, unless it was edited again meanwhile.
+            const send = (rows) => client.from(table).upsert(rows, { onConflict, defaultToNull: false });
+            const sent = (k, r) => { if (state.outbox[k]?.row.updated_at === r.updated_at) delete state.outbox[k]; };
+            const { error } = await send(items.map(([, r]) => r));
+            if (!error) { for (const [k, r] of items) sent(k, r); continue; }
+            // Offline, signed out or server trouble: keep everything and retry later.
+            if (isOffline() || isTransient(error)) throw error;
+            // The server refused the batch. Send rows one by one so a single bad
+            // row can't hold back every other change from this device.
+            log('batch refused, sending one by one', error);
             for (const [k, r] of items) {
-              if (state.outbox[k]?.row.updated_at === r.updated_at) delete state.outbox[k];
+              const res = await send([r]);
+              if (!res.error) { sent(k, r); continue; }
+              if (isTransient(res.error)) throw res.error;
+              const tries = (state.refused[k] = (state.refused[k] || 0) + 1);
+              lastError = `${table} ${r.id || ''}: ${errText(res.error)}`;
+              log('row refused', k, res.error);
+              // After 3 refusals, set it aside so it stops blocking; it stays on this device.
+              if (tries >= 3) { delete state.outbox[k]; delete state.refused[k]; state.dropped = (state.dropped || 0) + 1; }
             }
           }
           state.lastSynced = now();
@@ -206,7 +223,8 @@
           clearTimeout(retryTimer);
         } catch (err) {
           log('sync upload failed', err);
-          setStatus(isOffline() ? 'offline' : 'error');
+          lastError = errText(err);
+          setStatus(isOffline() ? 'offline' : 'error', true);
           clearTimeout(retryTimer);
           retryTimer = setTimeout(flush, RETRY_MS);
         }
@@ -216,6 +234,14 @@
     }
 
     const isOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+    // Errors worth retrying as they are: network, auth (token refresh), rate limits, server errors.
+    const isTransient = (err) => {
+      // A database or API refusal carries a code ("23514", "PGRST204"…); those
+      // won't fix themselves, except expired sign-ins (PGRST30x) and timeouts.
+      const code = typeof err?.code === 'string' ? err.code : '';
+      if (!code) return true; // network failure or something unexpected: retry as is
+      return /^PGRST30/.test(code) || code === '57014' || code === '42501' || /jwt/i.test(String(err.message || ''));
+    };
 
     // ----- server -> this device -----
 
@@ -258,7 +284,7 @@
       return true;
     }
 
-    async function pull() {
+    async function pull(seen) {
       let touched = new Set();
       for (const table of ['tasks', 'notes', 'user_settings']) {
         // Start a little before the cursor: a write that began before another
@@ -271,6 +297,7 @@
           const { data, error } = await q;
           if (error) throw error;
           for (const row of data) {
+            if (seen && table !== 'user_settings') seen[table].set(row.id, row);
             if (applyRemote(table, row)) touched.add(table);
             if (!state.cursor[table] || row.server_updated_at > state.cursor[table]) state.cursor[table] = row.server_updated_at;
           }
@@ -310,6 +337,7 @@
       userId = id;
       try { state = { ...emptyState(), ...JSON.parse(storage.getItem(stateKey()) || 'null') }; } catch { state = emptyState(); }
       if (!state.snap) state = emptyState();
+      state.refused ||= {};
       setStatus('syncing');
       diff('tasks');
       diff('notes');
@@ -337,12 +365,48 @@
     // Catch up after being offline or in the background.
     async function resume() {
       if (!userId) return;
+      let failed = null;
+      try { await pull(); } catch (err) { failed = err; }
+      try { await flush(); } catch (err) { failed ||= err; }
+      if (failed) {
+        log('sync resume failed', failed);
+        lastError = errText(failed);
+        setStatus(isOffline() ? 'offline' : 'error', true);
+      }
+    }
+
+    // Full check: read everything in the account, then upload anything this
+    // device has that the account is missing or has an older copy of.
+    // Last edit still wins, so nothing newer is overwritten.
+    async function repair() {
+      if (!userId) return { ok: false };
+      setStatus('syncing', true);
       try {
-        await pull();
+        await flush().catch(() => {});
+        state.cursor = { tasks: null, notes: null, user_settings: state.cursor.user_settings };
+        const seen = { tasks: new Map(), notes: new Map() };
+        await pull(seen);
+        let requeued = 0;
+        for (const table of ['tasks', 'notes']) {
+          const list = table === 'tasks' ? store.getTasks() : store.getNotes();
+          for (const item of list) {
+            const row = seen[table].get(item.id);
+            const missing = !row || row.deleted;
+            const older = row && !row.deleted && (item.updatedAt || 0) > (Number(row.updated_at) || 0)
+              && fingerprint(table, item) !== fingerprint(table, TABLES[table].fromRow(row));
+            if (missing || older) { delete state.snap[table][item.id]; requeued++; }
+          }
+          diff(table);
+        }
+        saveState();
         await flush();
+        const counts = { tasks: store.getTasks().length, server: [...seen.tasks.values()].filter((r) => !r.deleted).length };
+        return { ok: status === 'synced', requeued, ...counts };
       } catch (err) {
-        log('sync resume failed', err);
-        setStatus(isOffline() ? 'offline' : 'error');
+        log('sync repair failed', err);
+        lastError = errText(err);
+        setStatus(isOffline() ? 'offline' : 'error', true);
+        return { ok: false, error: lastError };
       }
     }
 
@@ -371,7 +435,11 @@
       stop,
       changed,
       resume,
+      repair,
       flush,
+      get userId() { return userId; },
+      get lastError() { return lastError; },
+      get dropped() { return state?.dropped || 0; },
       get status() { return status; },
       get pending() { return state ? Object.keys(state.outbox).length : 0; },
       get lastSynced() { return state?.lastSynced || 0; },

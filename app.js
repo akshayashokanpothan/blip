@@ -5,7 +5,7 @@
 // v2: when you sign in (Supabase keys in config.js), sync.js also keeps tasks,
 // notes and profile settings in step across your devices.
 
-const APP_VERSION = '2.3.6';
+const APP_VERSION = '2.3.7';
 
 const TASKS_KEY = 'blip.tasks.v1';
 const NOTES_KEY = 'blip.notes.v1';
@@ -1423,6 +1423,7 @@ function renderCalendar() {
 
 function renderSettings() {
   renderProfile();
+  renderSyncLine();
   $('#api-key').value = settings.apiKey || '';
   $('#mode-hint').textContent = settings.apiKey
     ? 'AI parsing is on. Claude Haiku reads what you say or type.'
@@ -2036,6 +2037,8 @@ const redirectUrl = () => location.origin + location.pathname;
 
 async function fromSession(session) {
   const u = session.user;
+  signingOut = false;
+  if (syncLost) { syncLost = false; $('#onboarding').hidden = true; onboardStep = null; }
   const meta = u.user_metadata || {};
   setProfile({
     mode: u.app_metadata?.provider === 'google' ? 'google' : 'email',
@@ -2519,7 +2522,10 @@ function initAccountAndInstall() {
     nextOnboardingStep();
   });
 
+  $('#sync-now').addEventListener('click', syncNow);
   $('#signout').addEventListener('click', async () => {
+    signingOut = true;
+    syncLost = false;
     if (!profile || profile.mode === 'guest') {
       setProfile(null);
       showOnboarding();
@@ -2541,13 +2547,25 @@ function initAccountAndInstall() {
   refreshInstallEntries();
 }
 
+// The profile on this device says "signed in", but Supabase has no session:
+// the sign-in expired or was ended elsewhere. Without this, Blip would look
+// signed in while nothing syncs.
+function markSyncLost() {
+  if (!profile || profile.mode === 'guest' || signingOut) return;
+  syncLost = true;
+  renderSyncLine();
+  toast('Sync is paused. Sign in again to keep your devices in step.');
+}
+
 async function initAuth() {
   if (CFG.supabaseUrl && CFG.supabaseAnonKey && window.supabase) {
     sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
     const { data } = await sb.auth.getSession();
     if (data.session) await fromSession(data.session);
+    else markSyncLost();
     sb.auth.onAuthStateChange((event, session) => {
-      if (session) fromSession(session);
+      if (session) { syncLost = false; fromSession(session); }
+      else if (event === 'SIGNED_OUT') markSyncLost();
       // Opened from a "reset password" email: ask for the new password now.
       if (event === 'PASSWORD_RECOVERY') openPasswordSetup('reset');
     });
@@ -2618,11 +2636,16 @@ $('#pw-form').addEventListener('submit', async (e) => {
 // ---------- sync (v2) ----------
 // Runs only when signed in with Supabase. Guests and preview mode behave as v1.
 let blipSync = null;
+let signingOut = false;
+// One full check per device after this update, so devices that drifted apart converge.
+const REPAIR_KEY = 'blip.sync.repaired.v1';
 
-function syncStatusText(status, last) {
+let syncLost = false; // the app thinks you're signed in, but the sign-in has expired
+function syncStatusText(status, last, err) {
+  if (syncLost) return 'Sync is paused: your sign-in expired on this device. Sign in again to sync.';
   if (status === 'syncing') return 'Syncing…';
   if (status === 'offline') return 'Offline. Changes will sync when you’re back online.';
-  if (status === 'error') return 'Couldn’t sync. Blip will try again shortly.';
+  if (status === 'error') return `Couldn’t sync${err ? ` (${err})` : ''}. Blip will try again shortly.`;
   if (status === 'synced') {
     const mins = Math.round((Date.now() - last) / 60000);
     return mins < 1 ? 'Synced just now' : `Synced ${mins} min ago`;
@@ -2630,12 +2653,49 @@ function syncStatusText(status, last) {
   return '';
 }
 
-function renderSyncLine(status, last) {
+function renderSyncLine(status = blipSync?.status, last = blipSync?.lastSynced, err = blipSync?.lastError) {
   const el = $('#sync-line');
   if (!el) return;
-  const text = syncStatusText(status, last);
+  const text = syncStatusText(status, last, err);
   el.textContent = text;
   el.hidden = !text;
+  el.classList.toggle('danger', syncLost || status === 'error');
+  // Details, so two devices can be compared at a glance.
+  const on = Boolean(blipSync?.userId) && !syncLost;
+  const detail = $('#sync-detail');
+  if (detail) {
+    const open = tasks.filter((t) => !t.done).length;
+    const waiting = blipSync?.pending || 0;
+    detail.textContent = on
+      ? `Account ${blipSync.userId.slice(0, 8)} · ${tasks.length} tasks on this device (${open} open)${waiting ? ` · ${waiting} waiting to upload` : ''}`
+      : '';
+    detail.hidden = !on;
+  }
+  const btn = $('#sync-now');
+  if (btn) {
+    btn.hidden = !(on || syncLost);
+    btn.querySelector('span').textContent = syncLost ? 'Sign in again' : 'Sync now';
+  }
+}
+
+async function syncNow() {
+  if (syncLost) { openSignIn(); return; }
+  if (!blipSync?.userId) return;
+  const btn = $('#sync-now');
+  btn.disabled = true;
+  btn.querySelector('span').textContent = 'Checking everything…';
+  const res = await blipSync.repair();
+  btn.disabled = false;
+  renderSyncLine();
+  render();
+  toast(res.ok
+    ? `In sync: ${res.tasks} tasks here, ${res.server} in your account${res.requeued ? `, ${res.requeued} sent up` : ''}`
+    : `Couldn’t sync${res.error ? `: ${res.error}` : ''}`);
+}
+
+// Back to the sign-in step, keeping this device's tasks so they can sync after.
+function openSignIn() {
+  showOnboardStep('auth');
 }
 
 function startSync(userId) {
@@ -2690,8 +2750,27 @@ function startSync(userId) {
     // focus and every minute while it's on screen, in case a live update is missed.
     window.addEventListener('focus', () => blipSync.resume());
     setInterval(() => { if (document.visibilityState === 'visible') blipSync.resume(); }, 60_000);
+    // Every 15 minutes, and when you come back after 15 minutes or more, run the
+    // same full check as "Sync now", so devices that drifted apart converge on their own.
+    const FULL_EVERY = 15 * 60_000;
+    let lastFull = Date.now();
+    const fullCheck = async () => {
+      if (!blipSync.userId || syncLost || document.visibilityState !== 'visible') return;
+      if (Date.now() - lastFull < FULL_EVERY) return;
+      lastFull = Date.now();
+      await blipSync.repair(); // pulled changes re-render through remoteChanged
+      renderSyncLine();
+    };
+    setInterval(fullCheck, 60_000);
+    document.addEventListener('visibilitychange', fullCheck);
   }
-  return blipSync.start(userId);
+  return blipSync.start(userId).then(async () => {
+    if (localStorage.getItem(REPAIR_KEY) === userId) return;
+    const res = await blipSync.repair();
+    if (res.ok) localStorage.setItem(REPAIR_KEY, userId);
+    renderSyncLine();
+    render();
+  });
 }
 
 async function stopSync() {
