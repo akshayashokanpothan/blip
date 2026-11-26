@@ -2,6 +2,9 @@
 // Add an entry at the top when a release ships. `id` must be unique and only ever grow.
 // action: { label, go } where go is 'settings', 'tour' or a view name.
 const WHATS_NEW = [
+  { id: 13, date: '2026-11-26', tag: 'Feature', title: 'Invite friends',
+    body: 'Share Blip with friends on WhatsApp, Messages or email, straight from Settings.',
+    action: { label: 'Invite now', go: 'settings' } },
   { id: 12, date: '2026-11-26', tag: 'Feature', title: 'Reminders when Blip is closed',
     body: 'Reminders now reach your phone even when Blip is closed. Allow notifications once on each device to turn it on.',
     action: { label: 'Open Settings', go: 'settings' } },
