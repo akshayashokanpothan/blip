@@ -2879,8 +2879,58 @@ function closeMenus() {
 
 function closeAll() {
   $('#install-sheet').classList.remove('open');
-  $('#scrim').classList.remove('show');
+  closeNews();
+  $('#scrim').classList.remove('show', 'clear');
   closeMenus();
+}
+
+// ---------- what's new ----------
+const NEWS_KEY = 'blip.news.seen';
+const newsSeen = () => Number(localStorage.getItem(NEWS_KEY)) || 0;
+const newsLatest = () => (typeof WHATS_NEW !== 'undefined' && WHATS_NEW[0] ? WHATS_NEW[0].id : 0);
+function renderNewsDot() {
+  const unread = newsLatest() > newsSeen();
+  for (const d of $$('.news-dot')) d.hidden = !unread;
+  for (const b of [$('#news-btn'), $('#news-pill')]) b?.setAttribute('aria-label', unread ? "What's new, new updates" : "What's new");
+}
+function renderNews() {
+  const seen = newsSeen();
+  const fmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });
+  $('#news-list').innerHTML = (typeof WHATS_NEW !== 'undefined' ? WHATS_NEW : []).map((n) => `
+    <li class="news-item${n.id > seen ? ' unseen' : ''}">
+      <div class="news-meta"><span class="news-tag">${n.id > seen ? 'New' : esc(n.tag || 'Update')}</span><span>${fmt.format(new Date(n.date + 'T12:00'))}</span></div>
+      <h3>${esc(n.title)}</h3>
+      <p>${esc(n.body)}</p>
+      ${n.action ? `<button class="news-go" type="button" data-news-go="${esc(n.action.go)}">${esc(n.action.label)}</button>` : ''}
+    </li>`).join('');
+}
+function openNews() {
+  closeMenus();
+  renderNews();
+  $('#news-sheet').classList.add('open');
+  $('#scrim').classList.add('show');
+  $('#scrim').classList.toggle('clear', mqDesktop.matches);
+  $('#news-pill').setAttribute('aria-expanded', 'true');
+  localStorage.setItem(NEWS_KEY, String(newsLatest()));
+  renderNewsDot();
+}
+function closeNews() {
+  $('#news-sheet').classList.remove('open');
+  $('#news-pill')?.setAttribute('aria-expanded', 'false');
+}
+function initNews() {
+  renderNewsDot();
+  $('#news-btn').addEventListener('click', openNews);
+  $('#news-pill').addEventListener('click', () => ($('#news-sheet').classList.contains('open') ? closeAll() : openNews()));
+  $('#news-close').addEventListener('click', closeAll);
+  $('#scrim').addEventListener('click', closeAll);
+  $('#news-list').addEventListener('click', (e) => {
+    const go = e.target.closest('[data-news-go]')?.dataset.newsGo;
+    if (!go) return;
+    closeAll();
+    if (go === 'tour') openTour();
+    else showView(go);
+  });
 }
 
 // ---------- tasks: open, edit, save ----------
@@ -3209,6 +3259,7 @@ render();
 initAccountAndInstall();
 initAuth();
 initDevice();
+initNews();
 checkReminders();
 {
   const openId = new URLSearchParams(location.search).get('task');
