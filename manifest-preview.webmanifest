@@ -20,5 +20,92 @@
       "type": "image/png"
     }
   ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": {
+      "title": "share_title",
+      "text": "share_text",
+      "url": "share_url"
+    }
+  },
+  "shortcuts": [
+    {
+      "name": "New voice task",
+      "short_name": "Voice task",
+      "description": "Say a task and Blip adds it",
+      "url": "./?go=voice",
+      "icons": [
+        {
+          "src": "icons/shortcuts/voice-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        },
+        {
+          "src": "icons/shortcuts/voice-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "maskable"
+        }
+      ]
+    },
+    {
+      "name": "Plan tomorrow",
+      "short_name": "Plan tomorrow",
+      "description": "Speak, and it all goes on tomorrow",
+      "url": "./?go=tomorrow",
+      "icons": [
+        {
+          "src": "icons/shortcuts/tomorrow-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        },
+        {
+          "src": "icons/shortcuts/tomorrow-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "maskable"
+        }
+      ]
+    },
+    {
+      "name": "Summarize today",
+      "short_name": "Summarize",
+      "description": "See how your day is going",
+      "url": "./?go=summary",
+      "icons": [
+        {
+          "src": "icons/shortcuts/summary-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        },
+        {
+          "src": "icons/shortcuts/summary-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "maskable"
+        }
+      ]
+    },
+    {
+      "name": "New note",
+      "short_name": "New note",
+      "description": "Dictate a note",
+      "url": "./?go=note",
+      "icons": [
+        {
+          "src": "icons/shortcuts/note-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        },
+        {
+          "src": "icons/shortcuts/note-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "maskable"
+        }
+      ]
+    }
+  ],
   "id": "./?env=preview"
 }

@@ -463,9 +463,10 @@ function tidyTitle(text) {
   return s.replace(/^./, (c) => c.toUpperCase());
 }
 
-function parseLocal(input) {
+function parseLocal(input, { whole = false } = {}) {
   const actions = [];
-  for (const raw of splitItems(input)) {
+  // Shared text is one thing to do, so it isn't split on commas or "and".
+  for (const raw of whole ? [applyCorrections(input)] : splitItems(input)) {
     const s = raw.replace(/[.!?]+$/, '').trim();
     let m;
 
@@ -682,6 +683,7 @@ function openCapture(mode = 'voice') {
 
 function closeCapture() {
   planTomorrow = false;
+  shared = null;
   stopDictation();
   captureOpen = false;
   cancelVoice();
@@ -834,6 +836,7 @@ function startListening() {
 let processing = false;
 const HAS_DAY = /\b(today|tonight|tomorrow|tmrw|yesterday|mon|tues?|wed(nes)?|thu(rs)?|fri|sat(ur)?|sun)(day)?\b|\b(next|this) (week|month|year)\b|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b|\b\d{1,2}(st|nd|rd|th)\b|\bin \d+ days?\b/i;
 let planTomorrow = false;
+let shared = null; // text shared into Blip from another app: { text, notes, from }
 let planAll = false; // this text said no day: every task goes on tomorrow
 async function processText(text) {
   text = text.trim();
@@ -888,13 +891,21 @@ async function runProcess(text) {
   const started = Date.now();
   let actions;
   let warning = '';
+  const share = shared && shared.text === text ? shared : null;
   try {
-    actions = settings.apiKey ? await parseWithLLM(text, settings.apiKey) : parseLocal(text);
+    // Shared text always uses the offline rules, and can only add tasks: a message
+    // that starts "delete…" or "done…" never touches the tasks you already have.
+    if (share) {
+      actions = parseLocal(text, { whole: true }).filter((a) => a.type === 'add');
+      if (!actions.length) actions = [{ type: 'add', text: tidyTitle(text.replace(/[.!?]+$/, '')), priority: 'medium', date: todayKey() }];
+    } else {
+      actions = settings.apiKey ? await parseWithLLM(text, settings.apiKey) : parseLocal(text);
+    }
   } catch (err) {
     warning = ` (AI parse failed: ${err.message}; used the offline parser)`;
     actions = parseLocal(text);
   }
-  if (!settings.apiKey) await tidyWithAI(text, actions);
+  if (!settings.apiKey && !share) await tidyWithAI(text, actions);
   await wait(Math.max(0, 600 - (Date.now() - started)));
   if (!captureOpen) return;
 
@@ -923,8 +934,10 @@ async function runProcess(text) {
     date: a.date || todayKey(),
     time: a.time || '',
     endTime: a.time && a.endTime ? a.endTime : '',
+    notes: share?.notes || '',
   }));
   cap.editing = false;
+  $('#cap-said-label').textContent = share ? `Shared${share.from ? ` from ${share.from}` : ''}` : 'You said';
   setCapTitle('Review');
   renderConfirm();
   showCapPanel('confirm');
@@ -2774,6 +2787,7 @@ function closeOnboarding(justFinished = false) {
   onboardStep = null;
   $('#onboarding').hidden = true;
   renderProfile();
+  setTimeout(runLaunch, justFinished && wasOpen ? 900 : 300);
   if (justFinished && wasOpen) {
     // Dark is the default look once onboarding is done, unless the person
     // already picked a theme in Settings on this device.
@@ -3725,6 +3739,79 @@ function initInvite() {
   });
 }
 
+// ---------- share into Blip and app icon shortcuts ----------
+// Android lists Blip in the share sheet (share_target in the manifest), which opens
+// ./?share_text=…&share_url=…&share_title=…. Long-pressing the app icon offers
+// shortcuts that open ./?go=voice|tomorrow|summary|note. Either is kept until Blip
+// is ready (signed in, onboarding done), then runs once.
+const LAUNCH_KEY = 'blip.launch';
+const SHARE_URL_RE = /\bhttps?:\/\/[^\s<>"]+[^\s<>".,;:!?)\]'’]/gi;
+const SHARE_OPENER = /^\s*(?:(?:hi|hello|hey|dear|good (?:morning|afternoon|evening))\b[^!.,:\n]{0,20}[!.,:]+|(?:reminder|fyi|note|update|pls|please note|important)\s*[:!-]+)\s*/i;
+const LAUNCH_GO = ['voice', 'tomorrow', 'summary', 'note'];
+
+function readLaunch(q) {
+  const go = q.get('go');
+  const share = ['share_title', 'share_text', 'share_url'].some((k) => q.get(k));
+  if (!share && !LAUNCH_GO.includes(go)) return;
+  const launch = share
+    ? { share: { title: q.get('share_title') || '', text: q.get('share_text') || '', url: q.get('share_url') || '' } }
+    : { go };
+  sessionStorage.setItem(LAUNCH_KEY, JSON.stringify(launch));
+  history.replaceState(null, '', location.pathname);
+}
+
+// Turns what another app shared into the text Blip parses and the notes it keeps.
+// Links go to notes. A long or multi-line message is kept whole in the notes and
+// only its first line becomes the task.
+function sharedTask({ title = '', text = '', url = '' }) {
+  const links = [...new Set([url, ...(`${text} ${title}`.match(SHARE_URL_RE) || [])].map((u) => u.trim()).filter(Boolean))];
+  const clean = (s) => s.replace(SHARE_URL_RE, ' ').replace(/[ \t]+/g, ' ').replace(/^[ \t\-–—:|]+|[ \t\-–—:|]+$/gm, '').trim();
+  let body = clean(text);
+  // A page title's site name ("… | BBC Good Food", "… - YouTube") isn't part of the task.
+  const head = clean(title).replace(/\s+[|–—-]\s+[^|–—-]{2,40}$/, '').trim();
+  if (!body) body = head;
+  let host = '';
+  try { host = links[0] ? new URL(links[0]).hostname.replace(/^www\./, '') : ''; } catch { /* not a URL */ }
+  const notes = [];
+  let line = body.split(/\n+/).map((l) => l.trim()).find(Boolean) || '';
+  if (body.includes('\n') || body.length > 120) {
+    notes.push(text.trim() || body);
+    // Group-chat openers ("Hi all!", "Reminder:") go, then the first sentence is the task.
+    line = line.replace(SHARE_OPENER, '').replace(SHARE_OPENER, '');
+    line = (line.match(/^.+?[.!?](?=\s|$)/) || [line])[0].replace(/[.!?]+$/, '');
+    if (line.length > 90) line = `${line.slice(0, 90).replace(/\s+\S*$/, '')}…`;
+  }
+  notes.push(...links.filter((l) => !notes[0]?.includes(l)));
+  line = line.charAt(0).toUpperCase() + line.slice(1);
+  if (!line) line = host ? `Check link from ${host}` : 'Check shared link';
+  return { text: line, notes: notes.join('\n'), from: host };
+}
+
+let launchBusy = false;
+function runLaunch() {
+  const raw = sessionStorage.getItem(LAUNCH_KEY);
+  if (!raw || launchBusy) return;
+  // Not ready yet: signing in, setting up, or splash still up. Try again shortly.
+  if (!onboard.done || onboardStep !== null || !$('#onboarding').hidden || !$('#splash').hidden) {
+    if (onboard.done) setTimeout(runLaunch, 800);
+    return;
+  }
+  sessionStorage.removeItem(LAUNCH_KEY);
+  let launch;
+  try { launch = JSON.parse(raw); } catch { return; }
+  closeAll();
+  if (launch.share) {
+    const s = sharedTask(launch.share);
+    showView('home');
+    shared = { ...s };
+    processText(s.text);
+    return;
+  }
+  const need = { tomorrow: 'plan', summary: 'summary' }[launch.go];
+  if (launch.go === 'voice') { showView('home'); openCapture('voice'); return; }
+  runPlus(launch.go, need && !can(need) ? FEATURE_MIN[need] : undefined);
+}
+
 // ---------- + shortcuts ----------
 const PLUS_ICONS = {
   summary: '<path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',
@@ -4170,6 +4257,9 @@ checkReminders();
     if (act === 'done' || act === 'snooze') runPendingAction(act, openId);
     else openTaskFromNotification(openId);
   }
+  readLaunch(q);
+  // Wait for the splash; runLaunch also runs when onboarding or sign-in closes.
+  setTimeout(runLaunch, $('#splash').hidden ? 250 : 1700);
 }
 
 if ('serviceWorker' in navigator) {

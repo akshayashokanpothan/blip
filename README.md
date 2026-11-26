@@ -29,6 +29,7 @@ Host the folder on any static host (GitHub Pages, Netlify, Vercel, Cloudflare Pa
 - **Delete:** swipe left, then tap Delete.
 - **Update by voice or text:** "done with milk", "delete the call", "rename gym to gym at 6".
 - **Reminders:** a task with a time and its reminder on sends a notification 10 minutes before, showing the task and its time. Allow notifications in Settings, and use "Send test" to check it works. Tapping the notification opens the task.
+- **Share into Blip (Android):** share a message or link from any app and pick Blip. It opens the review screen with the task filled in; links go to the task's notes. Long-press the app icon for New voice task, Plan tomorrow, Summarize today and New note. Installed before this? Reinstall Blip to pick these up.
 - **Unfinished tasks** from earlier days appear in their own section with a "Move to today" button.
 
 ## Parsing modes
