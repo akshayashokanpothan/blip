@@ -1535,11 +1535,29 @@ async function syncPushSchedule() {
 // Blip's own chime plays when a reminder fires while Blip is open. The sound
 // of a closed-app notification is the phone's; the buzz pattern goes with it.
 const BUZZ = [120, 80, 120, 80, 360]; // short, short, long
+const BUZZ_LONG = [400, 200, 400, 200, 700, 500, 400, 200, 400, 200, 700]; // about 4 s
+// Builds a repeated phrase: [freq, at, len, gain] notes, played `times` times.
+const repeatPhrase = (phrase, every, times, gains = []) => {
+  const out = [];
+  for (let i = 0; i < times; i++) for (const [f, at, len, g = 1] of phrase) out.push([f, at + i * every, len, g * (gains[i] ?? 1)]);
+  return out;
+};
 const CHIMES = {
-  blip:   { label: 'Blip',   notes: [[880, 0, 0.09], [1320, 0.11, 0.16]], wave: 'sine', gain: 0.22 },
-  soft:   { label: 'Soft',   notes: [[523, 0, 0.22], [784, 0.2, 0.34]], wave: 'triangle', gain: 0.2 },
-  bright: { label: 'Bright', notes: [[1047, 0, 0.08], [1319, 0.09, 0.08], [1568, 0.18, 0.2]], wave: 'sine', gain: 0.18 },
-  off:    { label: 'Off', notes: [] },
+  blip:    { label: 'Blip',   notes: [[880, 0, 0.09], [1320, 0.11, 0.16]], wave: 'sine', gain: 0.22 },
+  soft:    { label: 'Soft',   notes: [[523, 0, 0.22], [784, 0.2, 0.34]], wave: 'triangle', gain: 0.2 },
+  bright:  { label: 'Bright', notes: [[1047, 0, 0.08], [1319, 0.09, 0.08], [1568, 0.18, 0.2]], wave: 'sine', gain: 0.18 },
+  // Long tones: a few seconds each, for reminders you can't miss.
+  sunrise: { label: 'Sunrise', long: true, wave: 'bell', gain: 0.16,
+    notes: [...repeatPhrase([[523, 0, 1.4], [659, 0.26, 1.4], [784, 0.52, 1.4], [1047, 0.78, 1.6]], 2.2, 2, [0.6, 0.85]),
+      [523, 4.4, 2.6], [659, 4.66, 2.6], [784, 4.92, 2.6], [1047, 5.18, 3.0], [1319, 5.44, 3.0, 0.7]] },
+  marimba: { label: 'Marimba', long: true, wave: 'marimba', gain: 0.24,
+    notes: repeatPhrase([[659, 0, 0.5], [784, 0.17, 0.5], [880, 0.34, 0.5], [784, 0.51, 0.5], [659, 0.68, 0.5], [523, 0.85, 0.9]], 1.6, 4, [0.7, 0.85, 1, 1]) },
+  lullaby: { label: 'Lullaby', long: true, wave: 'triangle', gain: 0.22,
+    notes: [[392, 0, 0.6], [659, 0.5, 0.6], [587, 1.0, 0.6], [523, 1.5, 0.6], [587, 2.0, 0.6], [659, 2.5, 0.6], [784, 3.0, 1.3],
+      [392, 4.0, 0.6], [659, 4.5, 0.6], [587, 5.0, 0.6], [523, 5.5, 0.6], [494, 6.0, 0.6], [523, 6.5, 1.8]] },
+  pulse:   { label: 'Pulse', long: true, wave: 'sine', gain: 0.2,
+    notes: repeatPhrase([[1047, 0, 0.12], [1319, 0.15, 0.2]], 0.8, 8, [0.45, 0.55, 0.65, 0.75, 0.85, 1, 1, 1]) },
+  off:     { label: 'Off', notes: [] },
 };
 let audioCtx = null;
 // Browsers only allow sound after a tap, so warm the audio up on the first one.
@@ -1550,26 +1568,51 @@ addEventListener('pointerdown', () => {
   } catch { /* no Web Audio */ }
 }, { once: false, passive: true });
 
+// Extra partials (ratio, level, decay speed) give the bell and marimba their colour.
+const VOICES = {
+  bell: [[1, 1, 1], [2.76, 0.35, 2.5], [5.4, 0.12, 5]],
+  marimba: [[1, 1, 1], [3.9, 0.25, 6], [10, 0.06, 12]],
+};
+let chimeNodes = [];
+function stopChime() {
+  for (const o of chimeNodes) { try { o.stop(); } catch { /* already stopped */ } }
+  chimeNodes = [];
+}
 function playChime(name = settings.chime || 'blip') {
   const c = CHIMES[name];
   if (!c || !c.notes.length) return;
+  stopChime();
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     const t0 = audioCtx.currentTime + 0.02;
-    for (const [freq, at, len] of c.notes) {
-      const o = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
-      o.type = c.wave;
-      o.frequency.value = freq;
-      g.gain.setValueAtTime(0.0001, t0 + at);
-      g.gain.exponentialRampToValueAtTime(c.gain, t0 + at + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + len);
-      o.connect(g).connect(audioCtx.destination);
-      o.start(t0 + at);
-      o.stop(t0 + at + len + 0.05);
+    const partials = VOICES[c.wave] || [[1, 1, 1]];
+    for (const [freq, at, len, mul = 1] of c.notes) {
+      for (const [ratio, level, speed] of partials) {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = VOICES[c.wave] ? 'sine' : c.wave;
+        o.frequency.value = freq * ratio;
+        const end = t0 + at + len / speed;
+        g.gain.setValueAtTime(0.0001, t0 + at);
+        g.gain.exponentialRampToValueAtTime(Math.max(0.0002, c.gain * mul * level), t0 + at + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, end);
+        o.connect(g).connect(audioCtx.destination);
+        o.start(t0 + at);
+        o.stop(end + 0.05);
+        chimeNodes.push(o);
+      }
+    }
+    // A long tone stops with any tap, or when Blip goes to the background.
+    if (c.long) {
+      setTimeout(() => {
+        const stop = () => { stopChime(); removeEventListener('pointerdown', stop, true); };
+        addEventListener('pointerdown', stop, true);
+        setTimeout(() => removeEventListener('pointerdown', stop, true), 10000);
+      }, 300);
     }
   } catch { /* sound unavailable */ }
 }
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopChime(); });
 
 // A quick, bright "pop-ding" when tasks are added from the review screen.
 const ADDED_SOUND = { notes: [[587, 0, 0.07], [880, 0.065, 0.1], [1175, 0.14, 0.22]], wave: 'sine', gain: 0.16 };
@@ -1597,13 +1640,16 @@ $('#addsound-opts').addEventListener('click', (e) => {
 });
 
 function buzz() {
-  try { navigator.vibrate?.(BUZZ); } catch { /* not supported */ }
+  try { navigator.vibrate?.(CHIMES[settings.chime]?.long ? BUZZ_LONG : BUZZ); } catch { /* not supported */ }
 }
 
 function renderChimeOptions() {
   const cur = settings.chime || 'blip';
-  $('#chime-opts').innerHTML = Object.entries(CHIMES).map(([k, c]) =>
-    `<button type="button" class="remind-chip${k === cur ? ' on' : ''}" data-chime="${k}" aria-pressed="${k === cur}">${c.label}</button>`).join('');
+  const chip = ([k, c]) => `<button type="button" class="remind-chip${k === cur ? ' on' : ''}" data-chime="${k}" aria-pressed="${k === cur}">${c.label}</button>`;
+  const all = Object.entries(CHIMES).filter(([k]) => k !== 'off');
+  $('#chime-opts').innerHTML = `<span class="chip-group">Short</span>${all.filter(([, c]) => !c.long).map(chip).join('')}`
+    + `<span class="chip-group">Long</span>${all.filter(([, c]) => c.long).map(chip).join('')}`
+    + chip(['off', CHIMES.off]);
 }
 $('#chime-opts').addEventListener('click', (e) => {
   const b = e.target.closest('[data-chime]');
