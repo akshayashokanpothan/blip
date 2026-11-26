@@ -2,6 +2,8 @@
 // Add an entry at the top when a release ships. `id` must be unique and only ever grow.
 // action: { label, go } where go is 'settings', 'tour' or a view name.
 const WHATS_NEW = [
+  { id: 21, date: '2026-11-27', tag: 'Feature', title: 'Sort your tasks',
+    body: 'Tap the sort button next to Today to order your list by priority, time, newest or A–Z. Blip remembers your choice on all your devices.' },
   { id: 20, date: '2026-11-27', tag: 'Feature', title: 'Share into Blip',
     body: 'On Android, share a message from WhatsApp or a link from Chrome and pick Blip: it becomes a task, with the day and time picked up and the link saved in its notes. Long-press the Blip icon for New voice task, Plan tomorrow, Summarize today and New note. Already installed? Remove Blip from your home screen and install it again to get these.' },
   { id: 19, date: '2026-11-27', tag: 'Feature', title: 'Your morning plan',

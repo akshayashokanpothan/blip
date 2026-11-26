@@ -1266,6 +1266,40 @@ const sortTasks = (a, b) =>
   (timeKey(a).localeCompare(timeKey(b))) ||
   (a.created - b.created);
 
+// Sort choices for the Tasks list. Remembered in settings (synced).
+const TASK_SORTS = [
+  { id: 'priority', label: 'Priority', hint: 'Urgent first' },
+  { id: 'time', label: 'Time', hint: 'Earliest first' },
+  { id: 'newest', label: 'Newest', hint: 'Last added first' },
+  { id: 'az', label: 'A–Z', hint: 'By name' },
+];
+const taskSortId = () => (TASK_SORTS.some((o) => o.id === settings.taskSort) ? settings.taskSort : 'priority');
+const TASK_SORT_FNS = {
+  priority: sortTasks,
+  time: (a, b) => (a.done - b.done) || timeKey(a).localeCompare(timeKey(b)) ||
+    (PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]) || (a.created - b.created),
+  newest: (a, b) => (a.done - b.done) || (b.created - a.created),
+  az: (a, b) => (a.done - b.done) || a.text.localeCompare(b.text, undefined, { sensitivity: 'base', numeric: true }) || (a.created - b.created),
+};
+const listSort = () => TASK_SORT_FNS[taskSortId()];
+const SORT_ICON = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M17 20V4M13.5 7.5 17 4l3.5 3.5"/></svg>';
+function sortControlHTML() {
+  const cur = TASK_SORTS.find((o) => o.id === taskSortId());
+  const tick = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  return `
+    <div class="sort-wrap">
+      <button id="sort-btn" class="sort-btn" type="button" data-sort="toggle" aria-haspopup="true" aria-expanded="false" aria-label="Sort tasks, now by ${esc(cur.label)}">
+        ${SORT_ICON}<span>${esc(cur.label)}</span>
+      </button>
+      <div id="sort-menu" class="pop sort-menu" role="menu" hidden>
+        <p class="pop-label">Sort by</p>
+        ${TASK_SORTS.map((o) => `<button type="button" role="menuitemradio" aria-checked="${o.id === cur.id}" data-sort="${o.id}" class="${o.id === cur.id ? 'on' : ''}">
+          <span class="sort-opt"><b>${esc(o.label)}</b><small>${esc(o.hint)}</small></span>${o.id === cur.id ? tick : ''}
+        </button>`).join('')}
+      </div>
+    </div>`;
+}
+
 function taskHTML(t, { carry = false } = {}) {
   const bell = t.reminder && t.time ? `<span title="Reminder on" aria-label="Reminder on">${ICON.bell}</span>` : '';
   const high = `<span class="tag-prio p-${t.priority}"><span class="dot"></span>${PRIORITY_LABEL[t.priority]}</span>`;
@@ -1799,23 +1833,28 @@ function renderTasks() {
   const f = ui.filter;
   let html = '';
 
-  const section = (label, list, { empty = '', carry = false } = {}) => {
+  const section = (label, list, { empty = '', carry = false, sort = false } = {}) => {
     const body = list.length
       ? `<ul class="task-list">${list.map((t) => taskHTML(t, { carry })).join('')}</ul>`
       : `<p class="empty">${esc(empty)}</p>`;
-    return `<p class="section-label">${label}</p>${body}`;
+    const head = sort
+      ? `<div class="section-row"><p class="section-label">${label}</p>${sortControlHTML()}</div>`
+      : `<p class="section-label">${label}</p>`;
+    return head + body;
   };
+  const by = listSort();
 
   if (f === 'done') {
-    const list = tasks.filter((t) => t.done && matches(t)).sort((a, b) => b.created - a.created);
-    html += section('Finished', list, { empty: q ? `No finished tasks match “${q}”.` : 'Nothing finished yet.' });
+    const list = tasks.filter((t) => t.done && matches(t)).sort(taskSortId() === 'priority' ? (a, b) => b.created - a.created : by);
+    html += section('Finished', list, { sort: true, empty: q ? `No finished tasks match “${q}”.` : 'Nothing finished yet.' });
   } else {
-    const todayList = tasks.filter((t) => t.date === today && matches(t) && (f === 'all' || !t.done)).sort(sortTasks);
-    const carry = tasks.filter((t) => t.date < today && !t.done && matches(t)).sort(sortTasks);
+    const todayList = tasks.filter((t) => t.date === today && matches(t) && (f === 'all' || !t.done)).sort(by);
+    const carry = tasks.filter((t) => t.date < today && !t.done && matches(t)).sort(by);
     const upcoming = tasks.filter((t) => t.date > today && !t.done && matches(t))
       .sort((a, b) => a.date.localeCompare(b.date) || timeKey(a).localeCompare(timeKey(b)));
 
     html += section('Today', todayList, {
+      sort: true,
       empty: q ? `No tasks match “${q}”.` : 'Nothing for today yet. Tap the mic to add it.',
     });
     if (carry.length) html += section('Unfinished from before', carry, { carry: true });
@@ -3634,7 +3673,13 @@ function openSearch(rowSel, inputSel) {
   $(inputSel).focus();
 }
 
+function closeSortMenu() {
+  const m = $('#sort-menu');
+  if (m) m.hidden = true;
+  $('#sort-btn')?.setAttribute('aria-expanded', 'false');
+}
 function closeMenus() {
+  closeSortMenu();
   $('#more-menu').hidden = true;
   $('#more-btn').setAttribute('aria-expanded', 'false');
 }
@@ -4040,7 +4085,33 @@ $('#search').addEventListener('input', (e) => {
   renderTasks();
 });
 
+// Sort menu, drawn with the list next to the "Today" label.
+$('#tasks-list').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-sort]');
+  if (!b) return;
+  e.stopPropagation();
+  if (b.dataset.sort === 'toggle') {
+    const menu = $('#sort-menu');
+    const open = menu.hidden;
+    $('#more-menu').hidden = true;
+    $('#more-btn').setAttribute('aria-expanded', 'false');
+    menu.hidden = !open;
+    b.setAttribute('aria-expanded', String(open));
+    return;
+  }
+  const changed = settings.taskSort !== b.dataset.sort;
+  settings.taskSort = b.dataset.sort;
+  if (changed) saveSettings();
+  renderTasks();
+  const label = TASK_SORTS.find((o) => o.id === b.dataset.sort)?.label;
+  if (changed && label) toast(`Sorted by ${label}`);
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.sort-wrap')) closeSortMenu();
+});
+
 $('#more-btn').addEventListener('click', () => {
+  closeSortMenu();
   const menu = $('#more-menu');
   const open = menu.hidden;
   menu.hidden = !open;
