@@ -1408,8 +1408,8 @@ function renderDaySummary() {
     ${s.open.length ? `<p class="ds-label">Still open</p><ul class="ds-list">${s.open.slice(0, 3).map(li).join('')}${more(s.open, 3)}</ul>` : ''}
     ${n && !s.lite ? `<p class="ds-label">First up tomorrow</p><p class="ds-next">${esc(n.text)}${n.time ? ` <span class="muted">· ${esc(fmtTime(n.time))}</span>` : ''}</p>` : ''}
     <div class="ds-actions">
-      ${s.open.length && !s.lite ? `<button class="pill-btn" type="button" data-ds="move">Move ${s.open.length} to tomorrow</button>` : ''}
-      <button class="link" type="button" data-ds="hide">Hide for today</button>
+      ${s.open.length && !s.lite ? `<button class="ds-btn primary" type="button" data-ds="move"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h12M12 6l6 6-6 6"/><path d="M20 5v14"/></svg>Move ${s.open.length} to tomorrow</button>` : ''}
+      <button class="ds-btn" type="button" data-ds="hide"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 6 9 6a17 17 0 0 1-2.7 3.3M6.6 6.6C4.3 8.1 3 12 3 12s4 6 9 6c1.5 0 2.9-.5 4.1-1.2"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>Hide for today</button>
     </div>
     </div>`;
   return true;

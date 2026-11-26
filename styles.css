@@ -1059,3 +1059,12 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
 @media (prefers-reduced-motion: reduce) {
   .day-summary.building .ds-spark, .ds-spin, .ds-dots i, .ds-body.reveal > * { animation: none; }
 }
+/* Day summary actions: clear, tappable buttons */
+.ds-actions { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); gap: 10px; }
+.ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border-radius: 999px; font: inherit; font-size: 14.5px; font-weight: 600; white-space: nowrap; cursor: pointer; background: var(--pill); color: var(--ink); border: 1px solid var(--line); transition: background var(--t-fast) var(--ease), transform .12s ease; }
+.ds-btn svg.i { width: 17px; height: 17px; flex: none; }
+.ds-btn:hover { background: color-mix(in srgb, var(--pill) 70%, var(--ink) 10%); }
+.ds-btn:active { transform: scale(.97); }
+.ds-btn.primary { background: var(--fab); color: var(--fab-ink); border-color: var(--fab); }
+.ds-btn.primary:hover { background: color-mix(in srgb, var(--fab) 88%, var(--ink)); }
+@media (max-width: 599px) { .ds-actions .ds-btn { flex: 1 1 auto; } }
