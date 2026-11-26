@@ -86,6 +86,81 @@
     return at;
   }
 
-  root.BlipSummary = { daySummary, summaryAt, DEFAULT_TIME };
+
+  // ---------- morning plan ----------
+  // The partner to the evening summary: what today holds, sent each morning.
+  const MORNING_TIME = '08:00';
+  const MORNING_LINES = {
+    busy: [
+      'A full day. Take it one task at a time.',
+      'Lots on today. Start with the first one and keep rolling.',
+      'Big day ahead. You’ve got this.',
+    ],
+    steady: [
+      'A good, doable day. Let’s go.',
+      'A clear plan for today. Enjoy it.',
+      'Nicely sized day. Start strong.',
+    ],
+    carry: [
+      'A few things waited from before. Today’s a good day to clear them.',
+      'Some leftovers from earlier. Fold them into today.',
+    ],
+    empty: [
+      'Nothing planned yet. Say what today needs.',
+      'A blank page today. Add the one thing that matters most.',
+    ],
+  };
+  const byTime = (a, b) => (a.time || a.slotTime || '99').localeCompare(b.time || b.slotTime || '99');
+
+  // tasks: Blip tasks; day: YYYY-MM-DD of the plan; name: first name or ''.
+  // lite (Blip 2.0): counts and the first task only.
+  function morningPlan(tasks, day, name = '', { lite = false, slotTime = {}, fmt = (x) => x } = {}) {
+    const withSlot = (t) => ({ ...t, slotTime: !t.time && t.slot ? slotTime[t.slot] || '' : '' });
+    const todays = tasks.filter((t) => t.date === day && !t.done).map(withSlot).sort(byTime);
+    const carried = tasks.filter((t) => t.date < day && !t.done).sort((a, b) => b.date.localeCompare(a.date));
+    const timed = todays.filter((t) => t.time);
+    const first = timed[0] || null;
+    const urgent = todays.filter((t) => t.priority === 'high');
+    const total = todays.length;
+    const mood = !total && !carried.length ? 'empty' : carried.length && total < 4 ? 'carry' : total >= 6 ? 'busy' : 'steady';
+    const line = pick(MORNING_LINES[mood], day);
+    const n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
+    const facts = [];
+    facts.push(total ? `${n(total, 'task')} today${first ? `, first at ${fmt(first.time)}` : ''}.` : 'Nothing planned for today yet.');
+    if (carried.length) facts.push(`${carried.length} carried over.`);
+    const hi = name ? `, ${name}` : '';
+    const base = { mood, total, todays, carried, timed, first, urgent, lite, day };
+    if (lite) {
+      return {
+        ...base,
+        title: ['Today', 'at a glance'],
+        line: '',
+        gist: total ? `${n(total, 'task')}${first ? ` · first at ${fmt(first.time)}` : ''}` : carried.length ? `${carried.length} carried over` : 'Nothing planned yet',
+        notifTitle: 'Your morning plan',
+        notifBody: facts.join(' '),
+      };
+    }
+    if (urgent.length) facts.push(`${urgent.length} urgent.`);
+    return {
+      ...base,
+      title: [`Good morning${hi}.`],
+      line,
+      gist: total ? `${n(total, 'task')}${first ? ` · first at ${fmt(first.time)}` : ''}` : carried.length ? `${carried.length} carried over` : 'Nothing planned yet',
+      notifTitle: `Good morning${hi} ☀️`,
+      notifBody: `${facts.join(' ')} ${line}`.trim(),
+    };
+  }
+
+  // Shown on Home from the plan time until noon (or for 3 hours when it's
+  // later than 9 AM), and never past the evening summary.
+  function morningWindow(time, now = new Date()) {
+    const at = summaryAt(time, now);
+    if (!at) return null;
+    const noon = new Date(now); noon.setHours(12, 0, 0, 0);
+    const until = new Date(Math.max(noon.getTime(), at.getTime() + 3 * 3600e3));
+    return { at, until };
+  }
+
+  root.BlipSummary = { daySummary, summaryAt, DEFAULT_TIME, morningPlan, morningWindow, MORNING_TIME };
   if (typeof module !== 'undefined') module.exports = root.BlipSummary;
 })(typeof window !== 'undefined' ? window : globalThis);

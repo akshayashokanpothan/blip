@@ -98,13 +98,13 @@ const MODELS = [
   ['blip-1.0-beta', 'Blip 1.0 beta', 'Early preview · basics'],
 ];
 const MODEL_FEATURES = {
-  'blip-2.3': { summary: 'full', plan: true, move: true, bullets: true },
-  'blip-2.0': { summary: 'lite', plan: false, move: true, bullets: true },
-  'blip-1.0': { summary: false, plan: false, move: false, bullets: false },
-  'blip-1.0-beta': { summary: false, plan: false, move: false, bullets: false },
+  'blip-2.3': { summary: 'full', morning: 'full', plan: true, move: true, bullets: true },
+  'blip-2.0': { summary: 'lite', morning: 'lite', plan: false, move: true, bullets: true },
+  'blip-1.0': { summary: false, morning: false, plan: false, move: false, bullets: false },
+  'blip-1.0-beta': { summary: false, morning: false, plan: false, move: false, bullets: false },
 };
 // The first model, newest first, that has a feature, for "Needs Blip 2.0" labels.
-const FEATURE_MIN = { summary: 'blip-2.0', move: 'blip-2.0', bullets: 'blip-2.0', plan: 'blip-2.3' };
+const FEATURE_MIN = { summary: 'blip-2.0', morning: 'blip-2.0', move: 'blip-2.0', bullets: 'blip-2.0', plan: 'blip-2.3' };
 const modelId = () => (MODEL_FEATURES[settings.model] ? settings.model : MODELS[0][0]);
 const modelName = (id = modelId()) => (MODELS.find((m) => m[0] === id) || MODELS[0])[1];
 const can = (feature) => Boolean(MODEL_FEATURES[modelId()][feature]);
@@ -116,7 +116,9 @@ function setModel(id) {
   saveSettings();
   renderModelPickers();
   if (!can('summary')) { summaryOpen = false; summaryAnytime = false; summaryBuild = null; clearTimeout(summaryBuildTimer); }
+  morningBuild = null; clearTimeout(morningBuildTimer);
   renderSummaryOptions();
+  renderMorningOptions();
   scheduleNextReminder();
   render();
   toast(`Switched to ${modelName(id)}`);
@@ -1294,6 +1296,7 @@ function renderHome() {
   $('#greeting').textContent = `${greeting()}${first ? `, ${first}` : ''} · ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`;
   renderHeadline(todays, doneCount);
   renderDaySummary();
+  renderMorningPlan();
 }
 
 // ---------- day summary ----------
@@ -1497,6 +1500,229 @@ $('#summary-opts').addEventListener('click', (e) => {
 });
 $('#summary-time').addEventListener('change', (e) => {
   if (/^\d\d:\d\d$/.test(e.target.value)) saveSummaryTime(e.target.value);
+});
+
+// ---------- morning plan ----------
+// The partner to the day summary. From the plan time (8 AM unless changed)
+// until noon, Home shows what today holds, and a notification says so.
+// Blip 2.3 gets the full plan; Blip 2.0 a short one; Blip 1.x none.
+const MORNING_HIDE_KEY = 'blip.morning.hidden';
+const MORNING_SEEN_KEY = 'blip.morning.seen';
+// Pushes use a summary- id so the server sends them without Done and Snooze.
+const MORNING_PREFIX = 'summary-morning-';
+const morningTime = () => (can('morning') ? settings.morningTime || S.MORNING_TIME : 'off');
+function morningPlanFor(day = todayKey()) {
+  return S.morningPlan(tasks, day, displayName().split(/\s+/)[0], {
+    lite: MODEL_FEATURES[modelId()].morning === 'lite', slotTime: SLOT_TIME, fmt: fmtTime,
+  });
+}
+let morningOpen = false;
+let morningAnytime = false; // opened from a notification or the + menu outside its hours
+let morningBuild = null;
+let morningReveal = false;
+let morningBuildTimer = 0;
+function morningShown(now = new Date()) {
+  if (!can('morning') || localStorage.getItem(MORNING_HIDE_KEY) === todayKey()) return false;
+  if (!$('#day-summary').hidden) return false; // the evening summary wins
+  if (morningAnytime) return true;
+  const w = S.morningWindow(morningTime(), now);
+  return Boolean(w && now >= w.at && now < w.until);
+}
+function morningSteps() {
+  const m = morningPlanFor();
+  const steps = [
+    { doing: 'Reading today’s list', done: m.total ? `${m.total} task${m.total === 1 ? '' : 's'} today` : 'Nothing planned yet' },
+    { doing: 'Checking for leftovers', done: m.carried.length ? `${m.carried.length} carried over` : 'Nothing left over' },
+  ];
+  if (!m.lite) steps.push({ doing: 'Putting your day in order', done: m.first ? `First up at ${fmtTime(m.first.time)}` : 'No fixed times today' });
+  steps.push({ doing: 'Writing your plan', done: 'Plan ready' });
+  return steps;
+}
+function buildMorning() {
+  clearTimeout(morningBuildTimer);
+  morningOpen = true;
+  morningReveal = false;
+  const quick = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  morningBuild = { step: 0, steps: morningSteps() };
+  const tick = () => {
+    if (!morningBuild) return;
+    morningBuild.step++;
+    if (morningBuild.step >= morningBuild.steps.length) {
+      morningBuild = null;
+      morningReveal = true;
+      renderMorningPlan();
+      morningBuildTimer = setTimeout(() => { morningReveal = false; }, 900);
+      return;
+    }
+    renderMorningPlan();
+    morningBuildTimer = setTimeout(tick, quick ? 250 : 600 + Math.random() * 350);
+  };
+  renderMorningPlan();
+  morningBuildTimer = setTimeout(tick, quick ? 250 : 750);
+}
+const SUN_ICON = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>';
+function renderMorningPlan() {
+  const box = $('#morning-plan');
+  if (!box) return false;
+  const show = morningShown();
+  box.hidden = !show;
+  if (!show) return false;
+  const home = $('#view-home');
+  home.classList.add('summary-on');
+  home.classList.toggle('summary-expanded', morningOpen);
+  const m = morningPlanFor();
+  const today = todayKey();
+  box.classList.toggle('open', morningOpen);
+  const fresh = localStorage.getItem(MORNING_SEEN_KEY) !== today;
+  box.classList.toggle('fresh', fresh);
+  box.classList.toggle('building', Boolean(morningBuild));
+  const when = (t) => (t.time ? fmtTime(t.time) : t.slot ? SLOTS[t.slot] : '');
+  const li = (t) => `<li class="${t.priority === 'high' ? 'urgent' : ''}"><span class="mp-when">${esc(when(t) || 'Any time')}</span><span class="mp-text">${esc(t.text)}</span></li>`;
+  const ago = (t) => { const d = Math.round((parseKey(today) - parseKey(t.date)) / 864e5); return d === 1 ? 'yesterday' : `${d} days ago`; };
+  const more = (list, n) => (list.length > n ? `<li class="muted mp-more">and ${list.length - n} more</li>` : '');
+  const gist = morningBuild ? 'Planning your morning…' : m.gist;
+  const head = (expanded, btn) => `
+    <button class="ds-pill" type="button" ${btn} aria-expanded="${expanded}">
+      <span class="ds-spark mp-sun" aria-hidden="true">${SUN_ICON}</span>
+      <span class="ds-pill-text"><b>Your morning plan</b><span>${esc(gist)}</span></span>
+      ${btn.includes('data-mp') ? `${fresh && !morningOpen ? '<span class="ds-new" aria-label="New"></span>' : ''}<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>` : ''}
+    </button>`;
+  if (morningBuild) {
+    const b = morningBuild;
+    const tick = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>';
+    box.innerHTML = `${head(true, 'disabled')}
+    <div class="ds-body">
+      <ol class="ds-build" aria-live="polite">
+        ${b.steps.map((st, i) => `<li class="${i < b.step ? 'done' : i === b.step ? 'now' : 'next'}">
+          <span class="ds-step-ic">${i < b.step ? tick : i === b.step ? '<span class="ds-spin"></span>' : ''}</span>
+          <span>${esc(i < b.step ? st.done : st.doing)}${i === b.step ? '<span class="ds-dots"><i></i><i></i><i></i></span>' : ''}</span>
+        </li>`).join('')}
+      </ol>
+      <div class="ds-bar"><span style="width:${Math.round((b.step / b.steps.length) * 100)}%"></span></div>
+    </div>`;
+    return true;
+  }
+  const n = m.first;
+  const rest = m.todays.filter((t) => t !== n && t.id !== n?.id);
+  box.innerHTML = `${head(morningOpen, 'data-mp="toggle"')}
+    <div class="ds-body${morningReveal ? ' reveal' : ''}"${morningOpen ? '' : ' hidden'}>
+    <h3 class="ds-title">${esc(m.title.join(' '))}</h3>
+    ${m.line ? `<p class="ds-line">${esc(m.line)}</p>` : ''}
+    <div class="ds-stats${m.lite ? ' two' : ''}">
+      <div class="ds-stat good"><b>${m.total}</b><span>Today</span></div>
+      <div class="ds-stat"><b>${m.carried.length}</b><span>Carried</span></div>
+      ${m.lite ? '' : `<div class="ds-stat${m.urgent.length ? ' hot' : ''}"><b>${m.urgent.length}</b><span>Urgent</span></div>`}
+    </div>
+    ${n ? `<div class="mp-first"><span class="ds-label">First up</span><p><b>${esc(fmtTime(n.time))}</b> ${esc(n.text)}</p></div>` : ''}
+    ${!m.lite && rest.length ? `<p class="ds-label">${n ? 'Later today' : 'Today’s plan'}</p><ul class="ds-list mp-list">${rest.slice(0, 5).map(li).join('')}${more(rest, 5)}</ul>` : ''}
+    ${!m.lite && m.carried.length ? `<p class="ds-label">Carried over</p><ul class="ds-list">${m.carried.slice(0, 3).map((t) => `<li>${esc(t.text)} <span class="muted">· ${esc(ago(t))}</span></li>`).join('')}${more(m.carried, 3)}</ul>` : ''}
+    ${!m.total && !m.carried.length ? '<p class="ds-line">Tap the mic and say what today needs.</p>' : ''}
+    <div class="ds-actions">
+      ${m.carried.length && !m.lite ? `<button class="ds-btn primary" type="button" data-mp="bring"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H8M12 6l-6 6 6 6"/><path d="M4 5v14"/></svg>Bring ${m.carried.length} to today</button>` : ''}
+      <button class="ds-btn" type="button" data-mp="hide"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 6 9 6a17 17 0 0 1-2.7 3.3M6.6 6.6C4.3 8.1 3 12 3 12s4 6 9 6c1.5 0 2.9-.5 4.1-1.2"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>Hide for today</button>
+    </div>
+    </div>`;
+  return true;
+}
+function openMorning() {
+  if (!can('morning')) return;
+  morningAnytime = true;
+  if (localStorage.getItem(MORNING_HIDE_KEY) === todayKey()) localStorage.removeItem(MORNING_HIDE_KEY);
+  const first = localStorage.getItem(MORNING_SEEN_KEY) !== todayKey();
+  localStorage.setItem(MORNING_SEEN_KEY, todayKey());
+  showView('home');
+  renderHome();
+  if (first) buildMorning(); else { morningOpen = true; renderMorningPlan(); }
+}
+$('#morning-plan').addEventListener('click', (e) => {
+  const act = e.target.closest('[data-mp]')?.dataset.mp;
+  if (act === 'toggle') {
+    const first = !morningOpen && localStorage.getItem(MORNING_SEEN_KEY) !== todayKey();
+    localStorage.setItem(MORNING_SEEN_KEY, todayKey());
+    if (first) { buildMorning(); return; }
+    morningOpen = !morningOpen;
+    renderMorningPlan();
+  } else if (act === 'hide') {
+    morningAnytime = false;
+    morningOpen = false;
+    morningBuild = null;
+    clearTimeout(morningBuildTimer);
+    localStorage.setItem(MORNING_HIDE_KEY, todayKey());
+    renderHome();
+  } else if (act === 'bring') {
+    const today = todayKey();
+    let n = 0;
+    for (const t of tasks) {
+      if (t.date < today && !t.done) { t.date = today; t.notified = false; t.updatedAt = Date.now(); n++; }
+    }
+    save();
+    render();
+    toast(`Brought ${n} task${n === 1 ? '' : 's'} to today`);
+  }
+});
+
+function notifyMorning() {
+  const m = morningPlanFor();
+  toast('Your morning plan is on Home');
+  if (document.visibilityState === 'visible') playChime();
+  if (ui.view === 'home') renderHome();
+  if (pushCovers()) return; // the server sends it
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const id = `${MORNING_PREFIX}${todayKey()}`;
+  const opts = { body: m.notifBody, icon: 'icons/app-icon-192.png', badge: 'icons/app-icon-192.png', tag: `blip-${id}`, data: { taskId: id } };
+  navigator.serviceWorker?.ready.then((reg) => reg.showNotification(m.notifTitle, opts)).catch(() => {});
+}
+// The next two mornings' notifications for the server to send, so tomorrow's
+// plan arrives even if Blip isn't opened before then.
+function morningPushes(now = Date.now()) {
+  const out = [];
+  for (let i = 0; i < 2; i++) {
+    const day = addDays(todayKey(), i);
+    const at = S.summaryAt(morningTime(), parseKey(day));
+    if (!at || at.getTime() <= now) continue;
+    const m = morningPlanFor(day);
+    out.push({ task_id: `${MORNING_PREFIX}${day}`, fire_at: at.toISOString(), offset_min: 0, title: m.notifTitle, body: m.notifBody });
+  }
+  return out;
+}
+
+const MORNING_CHOICES = ['off', '06:00', '07:00', '08:00', '09:00'];
+function renderMorningOptions() {
+  const cur = morningTime();
+  const opts = $('#morning-opts');
+  opts.closest('.setting-row').classList.toggle('locked', !can('morning'));
+  if (!can('morning')) {
+    opts.innerHTML = '<button type="button" class="remind-chip" data-model-up="blip-2.3">Switch to Blip 2.3</button>';
+    $('#morning-time').value = '';
+    $('#morning-hint').textContent = `The morning plan comes with Blip 2.0 and 2.3. You’re on ${modelName()}, which keeps to the basics: to-dos and reminders.`;
+    return;
+  }
+  opts.innerHTML = MORNING_CHOICES.map((v) => {
+    const on = v === cur;
+    return `<button type="button" class="remind-chip${on ? ' on' : ''}" data-morning="${v}" aria-pressed="${on}">${v === 'off' ? 'Off' : fmtTime(v)}</button>`;
+  }).join('');
+  $('#morning-time').value = cur === 'off' ? '' : cur;
+  $('#morning-hint').textContent = cur === 'off'
+    ? 'Off. Turn it on to start each day knowing what’s ahead.'
+    : `Every morning at ${fmtTime(cur)}, Blip tells you what today holds and what’s carried over.${can('plan') ? '' : ' Blip 2.3 adds your full list, urgent tasks and Bring to today.'}`;
+}
+function saveMorningTime(v) {
+  settings.morningTime = v;
+  saveSettings();
+  renderMorningOptions();
+  scheduleNextReminder();
+  if (ui.view === 'home') renderHome();
+  if (sb && profile && profile.mode !== 'guest') sb.auth.updateUser({ data: { blip_morning: v } }).catch(() => {});
+  toast(v === 'off' ? 'Morning plan off' : `Morning plan at ${fmtTime(v)}`);
+}
+$('#morning-opts').addEventListener('click', (e) => {
+  const up = e.target.closest('[data-model-up]')?.dataset.modelUp;
+  if (up) { setModel(up); return; }
+  const v = e.target.closest('[data-morning]')?.dataset.morning;
+  if (v) saveMorningTime(v);
+});
+$('#morning-time').addEventListener('change', (e) => {
+  if (/^\d\d:\d\d$/.test(e.target.value)) saveMorningTime(e.target.value);
 });
 
 // ---------- home headline ----------
@@ -1808,6 +2034,14 @@ function checkReminders() {
     if (now - sumAt.getTime() < REMIND_GRACE_MS) notifySummary();
     else if (ui.view === 'home') renderHome();
   }
+  const mornAt = S.summaryAt(morningTime());
+  const mornKey = `morning|${todayKey()}`;
+  if (mornAt && now >= mornAt.getTime() && !remindSent[mornKey]) {
+    remindSent[mornKey] = now;
+    sentChanged = true;
+    if (now - mornAt.getTime() < REMIND_GRACE_MS) notifyMorning();
+    else if (ui.view === 'home') renderHome();
+  }
   if (sentChanged) {
     // Forget marks older than two days so the list stays small.
     for (const [k, v] of Object.entries(remindSent)) if (now - v > 2 * 864e5) delete remindSent[k];
@@ -1830,6 +2064,8 @@ function scheduleNextReminder() {
   for (const at of Object.values(snoozes || {})) if (at < next) next = at;
   const sumAt = S.summaryAt(summaryTime());
   if (sumAt && !remindSent[`summary|${todayKey()}`] && sumAt.getTime() < next) next = sumAt.getTime();
+  const mornAt = S.summaryAt(morningTime());
+  if (mornAt && !remindSent[`morning|${todayKey()}`] && mornAt.getTime() < next) next = mornAt.getTime();
   queuePushSchedule();
   if (next === Infinity) return;
   // Browsers cap timers near 24.8 days; re-arm at most daily.
@@ -1981,6 +2217,7 @@ async function syncPushSchedule() {
     const fireAt = sumAt.toISOString();
     want.set(`summary-${todayKey()}|${fireAt}`, { task_id: `summary-${todayKey()}`, fire_at: fireAt, offset_min: 0, title: s.notifTitle, body: s.notifBody });
   }
+  for (const r of morningPushes(now)) want.set(`${r.task_id}|${r.fire_at}`, r);
   try {
     const { data: have, error } = await sb.from('reminders')
       .select('task_id, fire_at, offset_min').eq('sent', false).gt('fire_at', new Date(now).toISOString());
@@ -2135,6 +2372,7 @@ $('#chime-opts').addEventListener('click', (e) => {
 // ---------- reminder settings ----------
 function renderRemindOptions() {
   renderSummaryOptions();
+  renderMorningOptions();
   renderChimeOptions();
   renderAddSoundOptions();
   const picked = remindOffsets();
@@ -2383,6 +2621,11 @@ async function fromSession(session) {
   if (typeof meta.blip_summary === 'string' && meta.blip_summary !== settings.summaryTime) {
     settings.summaryTime = meta.blip_summary;
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }
+  if (typeof meta.blip_morning === 'string' && meta.blip_morning !== settings.morningTime) {
+    settings.morningTime = meta.blip_morning;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    if (typeof renderMorningOptions === 'function') renderMorningOptions();
   }
   if (Array.isArray(meta.blip_remind) && !Array.isArray(settings.remindOffsets)) {
     settings.remindOffsets = R.extraOffsets(meta.blip_remind);
@@ -3885,6 +4128,7 @@ document.addEventListener('visibilitychange', () => {
 
 // Tapping a notification opens that task.
 function openTaskFromNotification(id) {
+  if (String(id).startsWith(MORNING_PREFIX)) { openMorning(); return; }
   if (String(id).startsWith('summary-')) { summaryOpen = true; showView('home'); renderHome(); return; }
   if (!tasks.some((x) => x.id === id)) return;
   editingId = id;

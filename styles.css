@@ -1069,3 +1069,27 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
 .ds-btn.primary { background: var(--fab); color: var(--fab-ink); border-color: var(--fab); }
 .ds-btn.primary:hover { background: color-mix(in srgb, var(--fab) 88%, var(--ink)); }
 @media (max-width: 599px) { .ds-actions .ds-btn { flex: 1 1 auto; } }
+
+/* ---------- Morning plan (shares the day summary's pill) ---------- */
+.morning-plan .mp-sun { background: linear-gradient(140deg, #f7b733, #fc6d3f); color: #fff; }
+.morning-plan .mp-sun svg { fill: none; stroke: currentColor; stroke-width: 2; }
+.morning-plan.fresh:not(.open) { border-color: color-mix(in srgb, #f7a233 55%, var(--line)); animation: mp-glow 2.4s ease-in-out infinite; }
+@keyframes mp-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(247, 162, 51, 0), var(--shadow); }
+  50% { box-shadow: 0 0 0 6px rgba(247, 162, 51, .18), 0 6px 22px rgba(247, 140, 51, .28); }
+}
+.morning-plan.building .ds-spark { animation: mp-rise 1.6s ease-in-out infinite; }
+@keyframes mp-rise { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-2px) rotate(45deg); } }
+.ds-stat.hot b { color: var(--p-high, #e5484d); }
+.mp-first { margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line); background: color-mix(in srgb, #f7a233 8%, var(--card)); }
+.mp-first .ds-label { display: block; margin: 0 0 2px; }
+.mp-first p { margin: 0; font-size: 15px; }
+.mp-first b { font-family: var(--display); margin-right: 6px; }
+.mp-list li::before { display: none; }
+.mp-list li { gap: 12px; }
+.mp-when { flex: none; min-width: 74px; font-size: 13px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mp-list li.urgent .mp-text::after { content: 'Urgent'; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--p-high, #e5484d); background: color-mix(in srgb, var(--p-high, #e5484d) 12%, transparent); vertical-align: 1px; }
+.mp-more { padding-left: 86px !important; }
+@media (prefers-reduced-motion: reduce) {
+  .morning-plan.fresh:not(.open), .morning-plan.building .ds-spark { animation: none; }
+}

@@ -242,6 +242,7 @@
           </div>
 
           <div id="day-summary" class="day-summary" hidden></div>
+          <div id="morning-plan" class="day-summary morning-plan" hidden></div>
 
           <div class="mic-wrap">
             <button id="home-mic" class="mic-hero" type="button" aria-label="Speak">
@@ -536,6 +537,11 @@
           <span class="grow"><strong>Remind me</strong><span id="remind-hint" class="hint"></span></span>
           <div id="remind-opts" class="remind-opts" role="group" aria-label="When to remind you"></div>
           <button id="remind-reset" class="link" type="button" hidden>Back to default</button>
+        </div>
+        <div class="setting-row remind-row">
+          <span class="grow"><strong>Morning plan</strong><span id="morning-hint" class="hint"></span></span>
+          <div id="morning-opts" class="remind-opts" role="group" aria-label="When to send your morning plan"></div>
+          <label class="summary-other"><span>Other time</span><input id="morning-time" type="time" step="300"></label>
         </div>
         <div class="setting-row remind-row">
           <span class="grow"><strong>Day summary</strong><span id="summary-hint" class="hint"></span></span>

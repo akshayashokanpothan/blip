@@ -2,6 +2,9 @@
 // Add an entry at the top when a release ships. `id` must be unique and only ever grow.
 // action: { label, go } where go is 'settings', 'tour' or a view name.
 const WHATS_NEW = [
+  { id: 19, date: '2026-11-27', tag: 'Feature', title: 'Your morning plan',
+    body: 'Every morning at 8 AM, Blip tells you what today holds: how many tasks, what’s first and anything carried over from before. Tap the plan on Home to see your day in order and bring leftovers to today. Change the time in Settings.',
+    action: { label: 'Set the time', go: 'settings' } },
   { id: 18, date: '2026-11-26', tag: 'Update', title: 'Watch your summary come together',
     body: 'Summarize today now reads your tasks, checks what’s done and open, looks at tomorrow and writes your summary step by step, then reveals it.' },
   { id: 17, date: '2026-11-26', tag: 'Feature', title: 'Each Blip model does more',
