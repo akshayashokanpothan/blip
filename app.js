@@ -5,7 +5,7 @@
 // v2: when you sign in (Supabase keys in config.js), sync.js also keeps tasks,
 // notes and profile settings in step across your devices.
 
-const APP_VERSION = '2.3.4';
+const APP_VERSION = '2.3.5';
 
 const TASKS_KEY = 'blip.tasks.v1';
 const NOTES_KEY = 'blip.notes.v1';
@@ -954,6 +954,57 @@ document.addEventListener('keydown', (e) => {
 // Stops on a second tap, or 3 seconds after the last word.
 let dictation = null;
 
+// Spoken lists ("milk onion bread biscuits", "milk, eggs and bread") become bullets.
+// Only when every piece is short and it reads like items, not a sentence.
+const BULLET = '• ';
+const LIST_STOP = /^(the|a|an|to|is|are|was|be|for|with|at|on|in|of|my|our|your|his|her|their|i|we|you|he|she|it|they|that|this|please|need|needs|want|should|must|will|can|could|would|have|has|had|do|does|did|if|but|because|so|about|from|before|after|when|then|call|tell|ask|send|remind|check|make|go|come|meet|pay)$/i;
+const LIST_PAIRS = new Set(('peanut butter|ice cream|olive oil|coconut oil|sunflower oil|toilet paper|tissue paper|paper towels|green chilli|green chillies|red chilli|curry leaves|spring onion|spring onions|brown bread|white bread|brown rice|basmati rice|soy sauce|tomato sauce|tomato ketchup|baking soda|baking powder|cream cheese|sour cream|whipped cream|fresh cream|corn flakes|dish soap|hand wash|body wash|face wash|tooth paste|tooth brush|garbage bags|bin bags|aluminium foil|cling film|orange juice|apple juice|coconut milk|almond milk|oat milk|green tea|black pepper|sea salt|chicken breast|frozen peas|sweet potato|bell pepper|lady finger|bitter gourd|bottle gourd|ground nut|ground nuts|cashew nuts|dry fruits|cat food|dog food|phone charger|aa batteries|light bulb').split('|'));
+function listItems(text) {
+  const raw = text.replace(/[.!?]+$/, '').trim();
+  if (!raw || /\n/.test(raw)) return null;
+  // Words to items, keeping common two-word items together ("olive oil").
+  const tokens = (part) => {
+    const words = part.split(/\s+/), out = [];
+    for (let i = 0; i < words.length; i++) {
+      if (LIST_PAIRS.has(`${words[i]} ${words[i + 1] || ''}`.toLowerCase())) { out.push(`${words[i]} ${words[i + 1]}`); i++; } else out.push(words[i]);
+    }
+    return out;
+  };
+  const words = raw.split(/\s+/);
+  if (words.length > 30 || words.some((w) => LIST_STOP.test(w))) return null;
+  const pieces = raw.split(/\s*,\s*|\s+(?:and|then|also|plus)\s+/i).filter(Boolean);
+  let parts;
+  if (pieces.length < 2) {
+    // No separators: every word is an item, so it has to look like a shopping list.
+    if (words.length < 3 || words.some((w) => /\d/.test(w))) return null;
+    parts = tokens(raw);
+  } else {
+    // "tomatoes potatoes onions and green chillies": split runs of single words too.
+    parts = pieces.flatMap((p) => { const t = tokens(p); return t.length >= 3 ? t : [p]; });
+  }
+  if (parts.length < 3 || parts.some((p) => p.split(/\s+/).length > 4)) return null;
+  return parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1));
+}
+const bullets = (items) => items.map((i) => BULLET + i).join('\n');
+
+// Enter on a bullet line starts the next bullet; Enter on an empty bullet ends the list.
+document.addEventListener('keydown', (e) => {
+  const ta = e.target;
+  if (e.key !== 'Enter' || e.shiftKey || e.isComposing || !ta.closest?.('.notes-field')) return;
+  const start = ta.selectionStart;
+  const lineStart = ta.value.lastIndexOf('\n', start - 1) + 1;
+  const line = ta.value.slice(lineStart, start);
+  if (!line.startsWith(BULLET)) return;
+  e.preventDefault();
+  if (line.trim() === BULLET.trim()) {
+    ta.setRangeText('', lineStart, start, 'end');
+  } else {
+    ta.setRangeText('\n' + BULLET, start, ta.selectionEnd, 'end');
+  }
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  autoGrow(ta);
+});
+
 function stopDictation() {
   if (!dictation) return;
   const d = dictation;
@@ -966,6 +1017,13 @@ function stopDictation() {
     d.rec.onresult = null;
     try { d.rec.stop(); } catch { /* already stopped */ }
   }
+  // A spoken list becomes bullets, added under anything already in the box.
+  const spoken = [d.carried, d.heard].filter(Boolean).join(' ').trim();
+  const items = spoken && listItems(spoken);
+  if (items) {
+    d.ta.value = d.base + (d.base ? '\n' : '') + bullets(items);
+    autoGrow(d.ta);
+  }
   d.ta.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
@@ -977,7 +1035,7 @@ function startDictation(ta, btn) {
     return;
   }
   const base = ta.value.replace(/\s+$/, '');
-  const d = { ta, btn, carried: '', heard: '', timer: null, rec: null };
+  const d = { ta, btn, base, carried: '', heard: '', timer: null, rec: null };
   dictation = d;
   btn.classList.toggle('on', true);
   btn.setAttribute('aria-pressed', 'true');
@@ -985,7 +1043,7 @@ function startDictation(ta, btn) {
   const write = () => {
     const spoken = [d.carried, d.heard].filter(Boolean).join(' ');
     const text = spoken ? spoken.charAt(0).toUpperCase() + spoken.slice(1) : '';
-    const sep = base && text ? (/[.!?]$/.test(base) ? ' ' : '. ') : '';
+    const sep = base && text ? (/(^|\n)• [^\n]*$/.test(base) ? '\n' : /[.!?]$/.test(base) ? ' ' : '. ') : '';
     ta.value = base + sep + text;
     autoGrow(ta);
   };
