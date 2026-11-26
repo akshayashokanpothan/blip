@@ -837,3 +837,41 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
   .sheet.news-sheet.open { transform: none; }
 }
 .scrim.clear { background: transparent; }
+
+/* ---------- tablets and landscape ---------- */
+/* Touch screens wide enough for the desktop layout (tablets in landscape): no keyboard hints. */
+@media (min-width: 1024px) and (pointer: coarse) {
+  .quick-add .kbd, .shortcut-hint { display: none !important; }
+}
+/* Desktop layout: keep page headers clear of the What's new pill. */
+@media (min-width: 1024px) {
+  main > .view:not(#view-home) { padding-top: 48px; }
+}
+/* Tablet in portrait: a little more presence than a phone. */
+@media (min-width: 768px) and (max-width: 1023px) and (min-height: 900px) {
+  .hero-title { font-size: 52px; }
+  .hero-copy { font-size: 18px; }
+  .mic-hero { width: 136px; height: 136px; }
+  .mic-hero svg.i { width: 46px; height: 46px; }
+}
+/* Phones (and small tablets) on their side: short screens get a two-column home. */
+@media (max-width: 1023px) and (orientation: landscape) and (max-height: 560px) {
+  .topbar { padding: calc(env(safe-area-inset-top) + 8px) max(20px, env(safe-area-inset-right)) 6px max(20px, env(safe-area-inset-left)); }
+  main { max-width: 880px; }
+  #view-home .home-main {
+    display: grid; grid-template-columns: minmax(0, 1fr) 200px; grid-template-areas: "hero mic" "composer mic";
+    column-gap: 28px; align-content: center; align-items: center;
+  }
+  #view-home .hero { grid-area: hero; }
+  #view-home .mic-wrap { grid-area: mic; margin: 0; padding: 0; }
+  #view-home .composer { grid-area: composer; margin-top: 12px; }
+  .hero-kicker { margin-bottom: 4px; }
+  .hero-title { font-size: 30px; margin: 4px 0 6px; }
+  .hero-copy { font-size: 14px; }
+  .mic-hero { width: 96px; height: 96px; }
+  .mic-hero svg.i { width: 34px; height: 34px; }
+  .mic-label { margin-top: 34px; }
+  .tabbar { width: min(420px, calc(100% - 32px)); bottom: calc(env(safe-area-inset-bottom) + 8px); padding: 4px; }
+  .tab { height: 42px; }
+  .fab { bottom: calc(env(safe-area-inset-bottom) + 66px); width: 52px; height: 52px; }
+}
