@@ -5,7 +5,7 @@
 // v2: when you sign in (Supabase keys in config.js), sync.js also keeps tasks,
 // notes and profile settings in step across your devices.
 
-const APP_VERSION = '2.2.8';
+const APP_VERSION = '2.2.9';
 
 const TASKS_KEY = 'blip.tasks.v1';
 const NOTES_KEY = 'blip.notes.v1';
@@ -2546,6 +2546,10 @@ function startSync(userId) {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') blipSync.resume();
     });
+    // A desktop window can stay visible all day, so also catch up when it gets
+    // focus and every minute while it's on screen, in case a live update is missed.
+    window.addEventListener('focus', () => blipSync.resume());
+    setInterval(() => { if (document.visibilityState === 'visible') blipSync.resume(); }, 60_000);
   }
   return blipSync.start(userId);
 }

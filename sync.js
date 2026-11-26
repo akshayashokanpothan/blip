@@ -20,6 +20,7 @@
   const PAGE = 1000;
   const FLUSH_DELAY = 800;
   const RETRY_MS = 30_000;
+  const OVERLAP_MS = 60_000;
 
   // ----- row mapping: local objects <-> database rows -----
   const TABLES = {
@@ -179,12 +180,20 @@
       if (!entries.length) { setStatus('synced'); return; }
       setStatus('syncing');
       flushing = (async () => {
+        // One upload per table and row shape. Deletes carry only a few columns,
+        // and a bulk upsert fills columns a row leaves out with NULL, which the
+        // database rejects; mixing them with full rows used to fail the whole
+        // batch and stall this device's sync for good.
         const byTable = {};
-        for (const [k, { table, row }] of entries) (byTable[table] ||= []).push([k, row]);
+        for (const [k, { table, row }] of entries) {
+          const group = `${table}|${row.deleted && !('text' in row || 'title' in row) ? 'delete' : 'full'}`;
+          (byTable[group] ||= []).push([k, row]);
+        }
         try {
-          for (const [table, items] of Object.entries(byTable)) {
+          for (const [group, items] of Object.entries(byTable)) {
+            const table = group.split('|')[0];
             const onConflict = table === 'user_settings' ? 'user_id' : TABLES[table].key;
-            const { error } = await client.from(table).upsert(items.map(([, r]) => r), { onConflict });
+            const { error } = await client.from(table).upsert(items.map(([, r]) => r), { onConflict, defaultToNull: false });
             if (error) throw error;
             // Drop what was sent, unless it was edited again meanwhile.
             for (const [k, r] of items) {
@@ -252,16 +261,21 @@
     async function pull() {
       let touched = new Set();
       for (const table of ['tasks', 'notes', 'user_settings']) {
+        // Start a little before the cursor: a write that began before another
+        // device's write but committed after it gets an earlier server time,
+        // and would otherwise be skipped. Re-applying a row is harmless.
+        let from = state.cursor[table] ? new Date(Date.parse(state.cursor[table]) - OVERLAP_MS).toISOString() : null;
         for (;;) {
           let q = client.from(table).select('*').order('server_updated_at', { ascending: true }).limit(PAGE);
-          if (state.cursor[table]) q = q.gt('server_updated_at', state.cursor[table]);
+          if (from) q = q.gt('server_updated_at', from);
           const { data, error } = await q;
           if (error) throw error;
           for (const row of data) {
             if (applyRemote(table, row)) touched.add(table);
-            state.cursor[table] = row.server_updated_at;
+            if (!state.cursor[table] || row.server_updated_at > state.cursor[table]) state.cursor[table] = row.server_updated_at;
           }
           if (data.length < PAGE) break;
+          from = data[data.length - 1].server_updated_at;
         }
       }
       saveState();
