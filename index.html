@@ -237,6 +237,8 @@
             <p id="hero-copy" class="hero-copy">Turn your thoughts into tasks, notes, and reminders.</p>
           </div>
 
+          <div id="day-summary" class="day-summary" hidden></div>
+
           <div class="mic-wrap">
             <button id="home-mic" class="mic-hero" type="button" aria-label="Speak">
               <span class="ring"></span><span class="ring r2"></span>
@@ -524,6 +526,11 @@
           <span class="grow"><strong>Remind me</strong><span id="remind-hint" class="hint"></span></span>
           <div id="remind-opts" class="remind-opts" role="group" aria-label="When to remind you"></div>
           <button id="remind-reset" class="link" type="button" hidden>Back to default</button>
+        </div>
+        <div class="setting-row remind-row">
+          <span class="grow"><strong>Day summary</strong><span id="summary-hint" class="hint"></span></span>
+          <div id="summary-opts" class="remind-opts" role="group" aria-label="When to summarize your day"></div>
+          <label class="summary-other"><span>Other time</span><input id="summary-time" type="time" step="300"></label>
         </div>
         <div class="setting-row remind-row">
           <span class="grow"><strong>Reminder sound</strong><span class="hint">Plays when a reminder rings while Blip is open, with Blip’s own buzz. Short tones ring once; long ones play for a few seconds until you tap. Tap one to hear it.</span></span>
@@ -870,6 +877,7 @@
   <script src="headlines.js"></script>
   <script src="reminders.js"></script>
   <script src="whatsnew.js"></script>
+  <script src="summary.js"></script>
   <script src="sync.js"></script>
   <script src="app.js"></script>
 </body>

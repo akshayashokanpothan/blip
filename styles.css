@@ -733,6 +733,12 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
   /* Desktop home: greeting at the top, mic in the middle, text box at the bottom. */
   #view-home .home-main { display: flex; flex-direction: column; min-height: calc(100dvh - 92px); }
   #view-home .hero { order: 1; }
+  #view-home .day-summary { order: 1; margin: 24px auto 0; max-width: 760px; }
+  #view-home .day-summary.open { width: 100%; margin: 22px auto 0; }
+  #view-home.summary-on .mic-wrap { padding: 16px 0 28px; }
+  /* The open summary takes the mic's place; the box below still has a mic. */
+  #view-home.summary-expanded .mic-wrap { display: none; }
+  #view-home.summary-expanded .day-summary { margin-bottom: 24px; }
   #view-home .mic-wrap { order: 2; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 0; }
   #view-home .quick-add { order: 3; margin: 0; position: sticky; bottom: 24px; }
   .shortcut-hint { display: block; }
@@ -893,6 +899,52 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
 }
 .scrim.clear { background: transparent; }
 
+/* ---------- Day summary ---------- */
+.day-summary { margin: 20px auto 4px; width: fit-content; max-width: 100%; border-radius: 999px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); transition: border-radius .2s ease; }
+.day-summary.open { width: auto; margin-left: 4px; margin-right: 4px; border-radius: 22px; padding-bottom: 16px; }
+.ds-pill { display: flex; align-items: center; gap: 10px; width: 100%; justify-content: flex-start; padding: 8px 14px 8px 8px; border-radius: 999px; text-align: left; color: var(--ink); }
+.ds-pill:hover { background: var(--pill); }
+.day-summary.open .ds-pill { padding: 12px 16px 8px 12px; border-radius: 22px 22px 0 0; }
+.day-summary.open .ds-pill:hover { background: transparent; }
+.ds-spark { width: 34px; height: 34px; flex: none; border-radius: 999px; display: grid; place-items: center; background: var(--fab); color: var(--fab-ink, #fff); font-size: 15px; }
+.ds-pill-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.ds-pill-text b { font-size: 14.5px; font-weight: 600; }
+.ds-pill-text span { font-size: 13px; color: var(--muted); }
+.ds-pill svg { width: 18px; height: 18px; margin-left: 6px; color: var(--muted); transition: transform .2s ease; }
+.day-summary.open .ds-pill svg { transform: rotate(180deg); margin-left: auto; }
+/* Until it's opened today, the pill glows gently to draw the eye. */
+.day-summary.fresh:not(.open) { border-color: color-mix(in srgb, var(--fab) 55%, var(--line)); animation: ds-glow 2.4s ease-in-out infinite; }
+.day-summary.fresh:not(.open) .ds-spark { animation: ds-spark 2.4s ease-in-out infinite; }
+.ds-new { width: 8px; height: 8px; border-radius: 999px; background: var(--p-high, #e5484d); flex: none; margin-left: 2px; }
+@keyframes ds-glow {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--fab) 0%, transparent), var(--shadow); }
+  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--fab) 18%, transparent), 0 6px 22px color-mix(in srgb, var(--fab) 28%, transparent); }
+}
+@keyframes ds-spark { 0%, 100% { transform: scale(1) rotate(0); } 50% { transform: scale(1.12) rotate(18deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .day-summary.fresh:not(.open), .day-summary.fresh:not(.open) .ds-spark { animation: none; }
+}
+.ds-body { padding: 4px 18px 0; animation: ds-in .22s ease; }
+@keyframes ds-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.ds-title { margin: 0 0 2px; font-family: var(--display); font-size: 22px; }
+.ds-line { margin: 0 0 12px; color: var(--muted); font-size: 14.5px; line-height: 1.45; }
+.ds-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.ds-stat { padding: 10px 12px; border-radius: 14px; background: var(--pill); }
+.ds-stat b { display: block; font-family: var(--display); font-size: 24px; line-height: 1.1; }
+.ds-stat span { font-size: 12.5px; color: var(--muted); }
+.ds-stat.good b { color: var(--fab); }
+.ds-list { list-style: none; margin: 0 0 10px; padding: 0; }
+.ds-list li { display: flex; gap: 8px; align-items: baseline; padding: 4px 0; font-size: 14.5px; line-height: 1.4; }
+.ds-list li::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 999px; background: var(--border); transform: translateY(-1px); }
+.ds-list.done li { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--border); }
+.ds-list.done li::before { background: var(--fab); }
+.ds-label { margin: 6px 0 2px; font-size: 12.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.ds-next { margin: 0 0 12px; font-size: 14.5px; }
+.ds-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ds-actions .link { color: var(--muted); font-size: 14px; padding: 0 6px; }
+.summary-other { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+.summary-other input { height: 36px; border: 1px solid var(--border); border-radius: 999px; padding: 0 12px; background: var(--card); color: var(--ink); font-size: 14px; }
+
 /* ---------- Invite friends ---------- */
 .invite-card { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 14px 16px; margin-bottom: 18px; color: var(--ink); }
 .invite-card strong { display: block; font-size: 16px; font-weight: 600; }
@@ -933,10 +985,12 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
   .topbar { padding: calc(env(safe-area-inset-top) + 8px) max(20px, env(safe-area-inset-right)) 6px max(20px, env(safe-area-inset-left)); }
   main { max-width: 880px; }
   #view-home .home-main {
-    display: grid; grid-template-columns: minmax(0, 1fr) 200px; grid-template-areas: "hero mic" "composer mic";
+    display: grid; grid-template-columns: minmax(0, 1fr) 200px; grid-template-areas: "hero mic" "summary mic" "composer mic";
     column-gap: 28px; align-content: center; align-items: center;
   }
   #view-home .hero { grid-area: hero; }
+  #view-home .day-summary { grid-area: summary; margin: 10px auto 0; }
+  #view-home .day-summary.open { margin: 10px 0 0; }
   #view-home .mic-wrap { grid-area: mic; margin: 0; padding: 0; }
   #view-home .composer { grid-area: composer; margin-top: 12px; }
   .hero-kicker { margin-bottom: 4px; }

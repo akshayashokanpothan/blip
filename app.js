@@ -85,6 +85,7 @@ function normPriority(p) {
 let tasks = loadJSON(TASKS_KEY, []).map(normalizeTask);
 let notes = loadJSON(NOTES_KEY, []);
 const settings = loadJSON(SETTINGS_KEY, {});
+const S = window.BlipSummary; // summary.js
 if (settings.theme === 'default' || settings.theme === 'green') settings.theme = 'light';
 if (!THEMES.includes(settings.theme)) settings.theme = 'light';
 
@@ -1251,7 +1252,135 @@ function renderHome() {
   const first = displayName().split(/\s+/)[0];
   $('#greeting').textContent = `${greeting()}${first ? `, ${first}` : ''} · ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`;
   renderHeadline(todays, doneCount);
+  renderDaySummary();
 }
+
+// ---------- day summary ----------
+// After the summary time (7 PM unless changed in Settings), Home shows how the
+// day went, between the headline and the mic, until midnight.
+const SUMMARY_HIDE_KEY = 'blip.summary.hidden';
+const SUMMARY_SEEN_KEY = 'blip.summary.seen';
+const summaryTime = () => settings.summaryTime || S.DEFAULT_TIME;
+function summaryDue(now = new Date()) {
+  const at = S.summaryAt(summaryTime(), now);
+  return Boolean(at && now >= at);
+}
+function todaySummary() {
+  const today = todayKey();
+  return S.daySummary(tasks, today, addDays(today, 1), displayName().split(/\s+/)[0]);
+}
+// Collapsed to a pill by default; tap to open the full summary.
+let summaryOpen = false;
+function renderDaySummary() {
+  const box = $('#day-summary');
+  const today = todayKey();
+  const show = summaryDue() && localStorage.getItem(SUMMARY_HIDE_KEY) !== today;
+  box.hidden = !show;
+  $('#view-home').classList.toggle('summary-on', show);
+  if (!show) { $('#view-home').classList.remove('summary-expanded'); return false; }
+  const s = todaySummary();
+  box.classList.toggle('open', summaryOpen);
+  $('#view-home').classList.toggle('summary-expanded', summaryOpen);
+  const fresh = localStorage.getItem(SUMMARY_SEEN_KEY) !== today;
+  box.classList.toggle('fresh', fresh);
+  const li = (t) => `<li>${esc(t.text)}${t.time ? ` <span class="muted">· ${esc(fmtTime(t.time))}</span>` : ''}</li>`;
+  const more = (list, n) => (list.length > n ? `<li class="muted">and ${list.length - n} more</li>` : '');
+  const left = s.open.length + s.older.length;
+  const n = s.next[0];
+  const gist = s.total ? `${s.done.length} of ${s.total} done` : 'A quiet day';
+  box.innerHTML = `
+    <button class="ds-pill" type="button" data-ds="toggle" aria-expanded="${summaryOpen}">
+      <span class="ds-spark" aria-hidden="true">✦</span>
+      <span class="ds-pill-text"><b>Your day, summarized</b><span>${esc(gist)}</span></span>
+      ${fresh && !summaryOpen ? '<span class="ds-new" aria-label="New"></span>' : ''}
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div class="ds-body"${summaryOpen ? '' : ' hidden'}>
+    <h3 class="ds-title">${esc(s.title.join(' '))}</h3>
+    <p class="ds-line">${esc(s.line)}</p>
+    <div class="ds-stats">
+      <div class="ds-stat good"><b>${s.done.length}</b><span>Done</span></div>
+      <div class="ds-stat"><b>${left}</b><span>Still open</span></div>
+      <div class="ds-stat"><b>${s.next.length}</b><span>Tomorrow</span></div>
+    </div>
+    ${s.done.length ? `<p class="ds-label">Done today</p><ul class="ds-list done">${s.done.slice(0, 3).map(li).join('')}${more(s.done, 3)}</ul>` : ''}
+    ${s.open.length ? `<p class="ds-label">Still open</p><ul class="ds-list">${s.open.slice(0, 3).map(li).join('')}${more(s.open, 3)}</ul>` : ''}
+    ${n ? `<p class="ds-label">First up tomorrow</p><p class="ds-next">${esc(n.text)}${n.time ? ` <span class="muted">· ${esc(fmtTime(n.time))}</span>` : ''}</p>` : ''}
+    <div class="ds-actions">
+      ${s.open.length ? `<button class="pill-btn" type="button" data-ds="move">Move ${s.open.length} to tomorrow</button>` : ''}
+      <button class="link" type="button" data-ds="hide">Hide for today</button>
+    </div>
+    </div>`;
+  return true;
+}
+$('#day-summary').addEventListener('click', (e) => {
+  const act = e.target.closest('[data-ds]')?.dataset.ds;
+  if (act === 'toggle') {
+    summaryOpen = !summaryOpen;
+    localStorage.setItem(SUMMARY_SEEN_KEY, todayKey());
+    renderDaySummary();
+  } else if (act === 'hide') {
+    localStorage.setItem(SUMMARY_HIDE_KEY, todayKey());
+    renderHome();
+  } else if (act === 'move') {
+    const today = todayKey();
+    const tomorrow = addDays(today, 1);
+    let n = 0;
+    for (const t of tasks) {
+      if (t.date === today && !t.done) { t.date = tomorrow; t.notified = false; t.updatedAt = Date.now(); n++; }
+    }
+    save();
+    render();
+    toast(`Moved ${n} task${n === 1 ? '' : 's'} to tomorrow`);
+  }
+});
+
+function notifySummary() {
+  const s = todaySummary();
+  toast('Your day is summarized on Home');
+  if (document.visibilityState === 'visible') { playChime(); }
+  if (ui.view === 'home') renderHome();
+  if (pushCovers()) return; // the server sends it
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const opts = {
+    body: s.notifBody,
+    icon: 'icons/app-icon-192.png',
+    badge: 'icons/app-icon-192.png',
+    tag: `blip-summary-${todayKey()}`,
+    data: { taskId: `summary-${todayKey()}` },
+  };
+  navigator.serviceWorker?.ready.then((reg) => reg.showNotification(s.notifTitle, opts)).catch(() => {});
+}
+
+// Settings: Off, a few evening times, or any time.
+const SUMMARY_CHOICES = ['off', '18:00', '19:00', '20:00', '21:00'];
+function renderSummaryOptions() {
+  const cur = summaryTime();
+  $('#summary-opts').innerHTML = SUMMARY_CHOICES.map((v) => {
+    const on = v === cur;
+    return `<button type="button" class="remind-chip${on ? ' on' : ''}" data-summary="${v}" aria-pressed="${on}">${v === 'off' ? 'Off' : fmtTime(v)}</button>`;
+  }).join('');
+  $('#summary-time').value = cur === 'off' ? '' : cur;
+  $('#summary-hint').textContent = cur === 'off'
+    ? 'Off. Turn it on to see how your day went each evening.'
+    : `Every day at ${fmtTime(cur)}, Blip sums up your day on Home and sends you a notification.`;
+}
+function saveSummaryTime(v) {
+  settings.summaryTime = v;
+  saveSettings();
+  renderSummaryOptions();
+  scheduleNextReminder();
+  if (ui.view === 'home') renderHome();
+  if (sb && profile && profile.mode !== 'guest') sb.auth.updateUser({ data: { blip_summary: v } }).catch(() => {});
+  toast(v === 'off' ? 'Day summary off' : `Day summary at ${fmtTime(v)}`);
+}
+$('#summary-opts').addEventListener('click', (e) => {
+  const v = e.target.closest('[data-summary]')?.dataset.summary;
+  if (v) saveSummaryTime(v);
+});
+$('#summary-time').addEventListener('change', (e) => {
+  if (/^\d\d:\d\d$/.test(e.target.value)) saveSummaryTime(e.target.value);
+});
 
 // ---------- home headline ----------
 // Counts app opens so the headline can tell a first visit, a return after a
@@ -1546,6 +1675,14 @@ function checkReminders() {
       if (f.min === 0) { t.notified = true; changed = true; }
     }
   }
+  const sumAt = S.summaryAt(summaryTime());
+  const sumKey = `summary|${todayKey()}`;
+  if (sumAt && now >= sumAt.getTime() && !remindSent[sumKey]) {
+    remindSent[sumKey] = now;
+    sentChanged = true;
+    if (now - sumAt.getTime() < REMIND_GRACE_MS) notifySummary();
+    else if (ui.view === 'home') renderHome();
+  }
   if (sentChanged) {
     // Forget marks older than two days so the list stays small.
     for (const [k, v] of Object.entries(remindSent)) if (now - v > 2 * 864e5) delete remindSent[k];
@@ -1565,6 +1702,8 @@ function scheduleNextReminder() {
       if (!remindSent[sentKey(t, f)] && f.at < next) next = f.at;
     }
   }
+  const sumAt = S.summaryAt(summaryTime());
+  if (sumAt && !remindSent[`summary|${todayKey()}`] && sumAt.getTime() < next) next = sumAt.getTime();
   queuePushSchedule();
   if (next === Infinity) return;
   // Browsers cap timers near 24.8 days; re-arm at most daily.
@@ -1658,6 +1797,12 @@ async function syncPushSchedule() {
       const fireAt = new Date(f.at).toISOString();
       want.set(`${t.id}|${fireAt}`, { task_id: t.id, fire_at: fireAt, offset_min: f.min, title, body });
     }
+  }
+  const sumAt = S.summaryAt(summaryTime());
+  if (sumAt && sumAt.getTime() > now) {
+    const s = todaySummary();
+    const fireAt = sumAt.toISOString();
+    want.set(`summary-${todayKey()}|${fireAt}`, { task_id: `summary-${todayKey()}`, fire_at: fireAt, offset_min: 0, title: s.notifTitle, body: s.notifBody });
   }
   try {
     const { data: have, error } = await sb.from('reminders')
@@ -1809,6 +1954,7 @@ $('#chime-opts').addEventListener('click', (e) => {
 
 // ---------- reminder settings ----------
 function renderRemindOptions() {
+  renderSummaryOptions();
   renderChimeOptions();
   renderAddSoundOptions();
   const picked = remindOffsets();
@@ -2054,6 +2200,10 @@ async function fromSession(session) {
   });
   // An avatar picked on another device comes with the account.
   // Reminder choices follow the account too.
+  if (typeof meta.blip_summary === 'string' && meta.blip_summary !== settings.summaryTime) {
+    settings.summaryTime = meta.blip_summary;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }
   if (Array.isArray(meta.blip_remind) && !Array.isArray(settings.remindOffsets)) {
     settings.remindOffsets = R.extraOffsets(meta.blip_remind);
     saveSettings();
@@ -3458,6 +3608,7 @@ document.addEventListener('visibilitychange', () => {
 
 // Tapping a notification opens that task.
 function openTaskFromNotification(id) {
+  if (String(id).startsWith('summary-')) { summaryOpen = true; showView('home'); renderHome(); return; }
   if (!tasks.some((x) => x.id === id)) return;
   editingId = id;
   ui.backTo = 'home';
