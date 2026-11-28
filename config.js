@@ -13,6 +13,6 @@ window.BLIP_CONFIG = {
   aiTitles: false,
   // Moving day: when true, the old addresses (blip. and blippreview.) show a
   // "Blip has a new home" sheet that sends people to app.blip / apppreview.blip.
-  // Turn on once those new addresses work; see docs/landing-move.md.
-  moveNotice: false,
+  // It only appears once the new address answers; see docs/landing-move.md.
+  moveNotice: true,
 };
