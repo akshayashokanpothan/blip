@@ -22,7 +22,8 @@
   <script>
     // Anywhere but the live address is a test build ("Blip Preview").
     (function () {
-      if (location.hostname === 'blip.akshayashokanpothan.com') return;
+      // Live addresses: the app's new home, and its old one until the move is finished.
+      if (location.hostname === 'app.blip.akshayashokanpothan.com' || location.hostname === 'blip.akshayashokanpothan.com') return;
       document.documentElement.dataset.env = 'preview';
       // The install name and icons are swapped at build time for preview
       // deployments (scripts/vercel-build.sh); this only sets the titles.
@@ -882,6 +883,20 @@
       <a id="invite-sms" class="invite-opt"><span class="invite-dot sms"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg></span>Message</a>
       <a id="invite-mail" class="invite-opt"><span class="invite-dot mail"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5L12 13l8.5-6.5"/></svg></span>Email</a>
       <button id="invite-more" class="invite-opt" type="button" hidden><span class="invite-dot more"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></svg></span>More</button>
+    </div>
+  </section>
+
+  <section id="moved-sheet" class="sheet invite-sheet" role="dialog" aria-label="Blip has a new home">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="news-head">
+      <h2>Blip has a new home</h2>
+      <button id="moved-close" class="news-x" type="button" aria-label="Close"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <p class="muted invite-copy">Blip now lives at <b id="moved-host"></b>. Your tasks come with you: sign in there, then install Blip again and turn notifications back on.</p>
+    <p id="moved-sync" class="moved-sync"></p>
+    <div class="moved-actions">
+      <a id="moved-go" class="btn primary" href="#">Go to the new Blip</a>
+      <button id="moved-later" class="btn" type="button">Later</button>
     </div>
   </section>
 

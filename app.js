@@ -3687,6 +3687,7 @@ function closeMenus() {
 function closeAll() {
   $('#install-sheet').classList.remove('open');
   $('#invite-sheet')?.classList.remove('open');
+  $('#moved-sheet')?.classList.remove('open');
   closeNews();
   $('#scrim').classList.remove('show', 'clear');
   closeMenus();
@@ -3739,6 +3740,51 @@ function initNews() {
     if (go === 'tour') openTour();
     else showView(go);
   });
+}
+
+// ---------- moving day ----------
+// Blip is moving to app.blip.akshayashokanpothan.com (preview: apppreview.blip...),
+// and the old addresses become the landing page. Browsers keep sign-ins and local data
+// per address, so on the old address Blip checks everything is synced, then points
+// people to the new one. Switched on by BLIP_CONFIG.moveNotice.
+const NEW_HOME = {
+  'blip.akshayashokanpothan.com': 'https://app.blip.akshayashokanpothan.com',
+  'blippreview.akshayashokanpothan.com': 'https://apppreview.blip.akshayashokanpothan.com',
+}[location.hostname];
+const MOVED_LATER_KEY = 'blip.movedLater';
+function movedSyncLine() {
+  const el = $('#moved-sync');
+  const st = blipSync?.status;
+  let text, warn = false;
+  if (!blipSync?.userId) { text = 'You’re not signed in, so tasks on this device stay here. Sign in first to save them to your account.'; warn = true; }
+  else if (syncLost) { text = 'Your sign-in expired. Sign in again here first so nothing is left behind.'; warn = true; }
+  else if (st === 'synced') text = 'Everything on this device is saved to your account.';
+  else if (st === 'offline') { text = 'You’re offline. Connect so your latest changes are saved before you go.'; warn = true; }
+  else if (st === 'error') { text = 'Some changes haven’t synced yet. Try Sync now in Settings first.'; warn = true; }
+  else text = 'Saving your latest changes…';
+  el.textContent = text;
+  el.classList.toggle('warn', warn);
+}
+function openMovedSheet() {
+  if (!NEW_HOME) return;
+  $('#moved-host').textContent = NEW_HOME.replace('https://', '');
+  $('#moved-go').href = NEW_HOME + '/';
+  movedSyncLine();
+  $('#moved-sheet').classList.add('open');
+  $('#scrim').classList.add('show');
+}
+function initMoved() {
+  if (!NEW_HOME || !window.BLIP_CONFIG?.moveNotice) return;
+  $('#moved-close').addEventListener('click', closeAll);
+  $('#moved-later').addEventListener('click', () => { localStorage.setItem(MOVED_LATER_KEY, todayKey()); closeAll(); });
+  // Keep the sync line live while the sheet is open.
+  setInterval(() => { if ($('#moved-sheet').classList.contains('open')) movedSyncLine(); }, 1500);
+  // After onboarding and the splash, once a day unless they tapped Later today.
+  setTimeout(() => {
+    if (localStorage.getItem(MOVED_LATER_KEY) === todayKey()) return;
+    if (!$('#onboarding').hidden) return;
+    openMovedSheet();
+  }, 3500);
 }
 
 // ---------- invite friends ----------
@@ -4318,6 +4364,7 @@ initAuth();
 initDevice();
 initNews();
 initInvite();
+initMoved();
 checkReminders();
 {
   const q = new URLSearchParams(location.search);

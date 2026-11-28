@@ -11,4 +11,8 @@ window.BLIP_CONFIG = {
   vapidPublicKey: 'BJySr1boLzAOnAWQbakE3d7kOAEL1jb3c7frLP8sEfAYRn_AISrLab7txKQflfdmrmHiWRRr6P7nnfd9DC2fOKs',
   // AI title polish: set to true after deploying the tidy-titles function (docs/ai-titles-setup.md).
   aiTitles: false,
+  // Moving day: when true, the old addresses (blip. and blippreview.) show a
+  // "Blip has a new home" sheet that sends people to app.blip / apppreview.blip.
+  // Turn on once those new addresses work; see docs/landing-move.md.
+  moveNotice: false,
 };
