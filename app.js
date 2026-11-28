@@ -3780,9 +3780,11 @@ function initMoved() {
   // Keep the sync line live while the sheet is open.
   setInterval(() => { if ($('#moved-sheet').classList.contains('open')) movedSyncLine(); }, 1500);
   // After onboarding and the splash, once a day unless they tapped Later today.
-  setTimeout(() => {
+  // Only once the new address answers, so nobody is sent to a page that isn't there yet.
+  setTimeout(async () => {
     if (localStorage.getItem(MOVED_LATER_KEY) === todayKey()) return;
     if (!$('#onboarding').hidden) return;
+    try { await fetch(NEW_HOME + '/icon.svg', { mode: 'no-cors', cache: 'no-store' }); } catch { return; }
     openMovedSheet();
   }, 3500);
 }
