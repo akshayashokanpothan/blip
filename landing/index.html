@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Blip: say it. Get it done.</title>
+  <meta name="description" content="Blip turns what you say into tasks, reminders and a plan for your day. Speak a to-do, get a reminder with Done and Snooze, a morning plan and an evening summary.">
+  <meta name="theme-color" content="#F8FAF7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#262624" media="(prefers-color-scheme: dark)">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Blip: say it. Get it done.">
+  <meta property="og:description" content="Speak your to-dos. Blip sorts the time, the priority and the reminder, plans your morning and sums up your evening.">
+  <meta property="og:image" content="https://blip.akshayashokanpothan.com/assets/brand/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://blip.akshayashokanpothan.com/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <script>
+    // Where the app lives. The live landing page opens the live app; every other
+    // address (blippreview, Vercel previews, localhost) opens the preview app.
+    (function () {
+      var live = location.hostname === 'blip.akshayashokanpothan.com';
+      var app = window.BLIP_APP_URL = live ? 'https://app.blip.akshayashokanpothan.com' : 'https://apppreview.blip.akshayashokanpothan.com';
+      if (!live) document.documentElement.dataset.env = 'preview';
+      // Moving day: this address used to be the app. People who used Blip here, the
+      // installed app, and links from notifications, shares, shortcuts and emails
+      // (anything with a query or #token) go straight on to the app's new address.
+      try {
+        var used = false;
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k.indexOf('blip.') === 0 || k.indexOf('sb-') === 0) { used = true; break; }
+        }
+        var standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+        // Invite and campaign links (?ref=, ?utm_) stay here; anything else is an app link.
+        var appLink = location.search.replace(/^\?/, '').split('&').some(function (kv) { return kv && !/^(ref|utm_[a-z]+)=/.test(kv); });
+        if (standalone || used || appLink || location.hash.length > 1) {
+          location.replace(app + location.pathname + location.search + location.hash);
+        }
+      } catch (e) {}
+      // Theme before first paint: saved choice, else the system setting.
+      var t = localStorage.getItem('blipLandingTheme');
+      if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
+  <link rel="stylesheet" href="landing.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <!-- ===== Top bar ===== -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="brand" href="#top" aria-label="Blip home">
+        <svg class="mark" viewBox="0 0 240 240" aria-hidden="true">
+          <path class="m-bubble" d="M48 38 H154 C174 38 188 52 188 72 V142 C188 162 174 176 154 176 H91 L57 204 C48 211 38 205 38 195 V176 H48 C28 176 14 162 14 142 V72 C14 52 28 38 48 38 Z"/>
+          <g class="m-bars"><rect x="49" y="101" width="13" height="32" rx="6.5"/><rect x="76" y="83" width="13" height="68" rx="6.5"/><rect x="103" y="64" width="13" height="106" rx="6.5"/><rect x="130" y="91" width="13" height="52" rx="6.5"/></g>
+          <circle class="m-dot" cx="175" cy="43" r="35"/>
+          <path class="m-tick" d="M158 43 L169 54 L191 31"/>
+          <g class="m-rays"><rect x="205" y="8" width="11" height="27" rx="5.5" transform="rotate(18 210.5 21.5)"/><rect x="222" y="25" width="11" height="27" rx="5.5" transform="rotate(40 227.5 38.5)"/><rect x="226" y="58" width="11" height="24" rx="5.5" transform="rotate(70 231.5 70)"/></g>
+        </svg>
+        <span class="word">blip</span>
+        <span class="env-badge">Preview</span>
+      </a>
+      <nav class="nav-links" aria-label="Sections">
+        <a href="#how">How it works</a>
+        <a href="#day">Your day</a>
+        <a href="#features">Features</a>
+        <a href="#models">Models</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="icon-btn" id="theme-btn" type="button" aria-label="Switch to dark theme">
+          <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>
+        </button>
+        <a class="link-signin" href="https://app.blip.akshayashokanpothan.com/" data-app>Sign in</a>
+        <a class="btn btn-primary btn-sm" href="https://app.blip.akshayashokanpothan.com/" data-app>Open Blip</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- ===== Hero ===== -->
+    <section class="hero" id="top">
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow reveal"><span class="live-dot"></span>Blip 2.3 is here</p>
+          <h1 class="reveal" style="--d:1">Say it.<br><span class="grad">Blip gets it done.</span></h1>
+          <p class="lede reveal" style="--d:2">Talk the way you think. Blip turns it into a task with the right time, priority and reminder, then plans your morning and wraps up your evening.</p>
+          <div class="cta-row reveal" style="--d:3">
+            <a class="btn btn-primary btn-lg magnetic" href="https://app.blip.akshayashokanpothan.com/" data-app>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+              Start talking
+            </a>
+            <a class="btn btn-ghost btn-lg" href="#how">See how it works</a>
+          </div>
+          <ul class="trust reveal" style="--d:4">
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Works on phone, tablet and desktop</li>
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Installs like an app</li>
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Syncs across devices</li>
+          </ul>
+        </div>
+
+        <!-- Live demo phone -->
+        <div class="hero-visual reveal" style="--d:2">
+          <div class="phone tilt" id="hero-phone" aria-label="Blip turning a spoken sentence into a task" role="img">
+            <div class="phone-screen">
+              <div class="ps-status"><span>9:41</span><span class="ps-icons"><i></i><i></i><i></i></span></div>
+              <div class="ps-head">
+                <div>
+                  <div class="ps-title">Today</div>
+                  <div class="ps-sub" id="hero-date">Friday, November 27</div>
+                </div>
+                <div class="ps-avatar">A</div>
+              </div>
+              <div class="ps-list" id="hero-list">
+                <div class="task"><span class="chk done"></span><div><div class="t-title">Morning run</div><div class="t-meta"><span>Today · 6:30 AM</span></div></div></div>
+                <div class="task"><span class="chk"></span><div><div class="t-title">Send the project invoice</div><div class="t-meta"><span>Today · 11:30 AM</span><b class="tag urgent">Urgent</b></div></div></div>
+                <div class="task"><span class="chk"></span><div><div class="t-title">Lunch with Riya</div><div class="t-meta"><span>Today · 1:00 PM</span></div></div></div>
+              </div>
+              <div class="ps-voice" id="hero-voice">
+                <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <p class="said" id="hero-said">&nbsp;</p>
+              </div>
+              <div class="ps-fab" id="hero-fab" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+              </div>
+              <div class="ps-tabs" aria-hidden="true"><i></i><i class="on"></i><i></i><i></i></div>
+            </div>
+          </div>
+          <div class="float-card fc-1" aria-hidden="true">
+            <span class="fc-ico bell"></span>
+            <div><b>Reminder</b><small>Call mom · in 10 min</small></div>
+          </div>
+          <div class="float-card fc-2" aria-hidden="true">
+            <span class="fc-ico sun"></span>
+            <div><b>Morning plan</b><small>5 tasks · first at 10 AM</small></div>
+          </div>
+        </div>
+      </div>
+      <a class="scroll-hint" href="#how" aria-label="Scroll to how it works"><span></span></a>
+    </section>
+
+    <!-- ===== Marquee of things people say ===== -->
+    <section class="marquee" aria-label="Things you can say to Blip">
+      <div class="marquee-track">
+        <span>“Pay rent on the 1st, every month”</span><span>“Dentist Thursday at 4”</span><span>“Buy milk, eggs and bread”</span><span>“Call the bank tomorrow morning, it's urgent”</span><span>“Gym at 7, no wait, 8”</span><span>“Send the deck to Priya by Friday”</span><span>“Water the plants every Sunday”</span>
+        <span aria-hidden="true">“Pay rent on the 1st, every month”</span><span aria-hidden="true">“Dentist Thursday at 4”</span><span aria-hidden="true">“Buy milk, eggs and bread”</span><span aria-hidden="true">“Call the bank tomorrow morning, it's urgent”</span><span aria-hidden="true">“Gym at 7, no wait, 8”</span><span aria-hidden="true">“Send the deck to Priya by Friday”</span><span aria-hidden="true">“Water the plants every Sunday”</span>
+      </div>
+    </section>
+
+    <!-- ===== How it works: interactive parser ===== -->
+    <section class="section" id="how">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">How it works</p>
+          <h2>One sentence in.<br>A finished task out.</h2>
+          <p class="section-lede">Tap a sentence and watch Blip pull out what matters. No forms, no dropdowns.</p>
+        </div>
+
+        <div class="parse reveal">
+          <div class="parse-chips" role="tablist" aria-label="Example sentences">
+            <button class="chip on" role="tab" aria-selected="true" data-i="0">Call mom tomorrow at 6, it's urgent</button>
+            <button class="chip" role="tab" aria-selected="false" data-i="1">Pay rent on the 1st every month</button>
+            <button class="chip" role="tab" aria-selected="false" data-i="2">Dentist Thursday at 4, no wait, 5</button>
+            <button class="chip" role="tab" aria-selected="false" data-i="3">Groceries: milk, eggs and bread</button>
+          </div>
+          <div class="parse-stage">
+            <div class="parse-in">
+              <div class="mic-orb" aria-hidden="true"><span></span><span></span>
+                <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+              </div>
+              <p class="parse-said" id="parse-said" aria-live="polite"></p>
+            </div>
+            <div class="parse-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+            <div class="parse-out" id="parse-out">
+              <div class="field" data-k="title"><span class="f-k">Task</span><span class="f-v"></span></div>
+              <div class="field" data-k="when"><span class="f-k">When</span><span class="f-v"></span></div>
+              <div class="field" data-k="priority"><span class="f-k">Priority</span><span class="f-v"></span></div>
+              <div class="field" data-k="remind"><span class="f-k">Reminder</span><span class="f-v"></span></div>
+              <div class="field" data-k="repeat"><span class="f-k">Repeats</span><span class="f-v"></span></div>
+              <p class="parse-note" id="parse-note"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== A day with Blip: sticky scroll story ===== -->
+    <section class="section day" id="day">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">A day with Blip</p>
+          <h2>From first coffee<br>to last light.</h2>
+          <p class="section-lede">Blip doesn't just hold your list. It shows up at the right moments.</p>
+        </div>
+
+        <div class="story">
+          <div class="story-steps">
+            <article class="step" data-step="0">
+              <span class="step-time">8:00 AM</span>
+              <h3>A morning plan, waiting for you.</h3>
+              <p>Wake up to what today holds: your first task, the rest in order, and anything left over from yesterday. One tap brings it all into today.</p>
+              <div class="step-visual"></div>
+            </article>
+            <article class="step" data-step="1">
+              <span class="step-time">10:50 AM</span>
+              <h3>Reminders you can act on.</h3>
+              <p>Blip nudges you before it matters, even when the app is closed. Mark it Done or Snooze it right from the notification.</p>
+              <div class="step-visual"></div>
+            </article>
+            <article class="step" data-step="2">
+              <span class="step-time">2:15 PM</span>
+              <h3>Share anything into Blip.</h3>
+              <p>A message on WhatsApp, a link in Chrome. Share it to Blip and it becomes a task, ready to save.</p>
+              <div class="step-visual"></div>
+            </article>
+            <article class="step" data-step="3">
+              <span class="step-time">7:00 PM</span>
+              <h3>Your day, summed up.</h3>
+              <p>An evening summary of what you finished and what's still open. Move the rest to tomorrow and switch off.</p>
+              <div class="step-visual"></div>
+            </article>
+          </div>
+
+          <div class="story-stage">
+            <div class="story-progress" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <div class="phone" id="story-phone" data-active="0">
+              <div class="phone-screen">
+                <div class="ps-status"><span class="sp-clock">8:00</span><span class="ps-icons"><i></i><i></i><i></i></span></div>
+
+                <!-- 0: Morning plan -->
+                <div class="screen s-morning" data-screen="0">
+                  <p class="sc-hello">Good morning · Friday</p>
+                  <h4 class="sc-big">Sketch the day out loud.</h4>
+                  <div class="sc-card">
+                    <div class="sc-card-head"><span class="sun-ico"></span><div><b>Your morning plan</b><small>5 tasks · first at 10:00 AM</small></div></div>
+                    <div class="stats"><div><b>5</b><small>Today</small></div><div><b>2</b><small>Carried</small></div><div><b class="red">1</b><small>Urgent</small></div></div>
+                    <div class="first-up"><small>FIRST UP</small><span><b>10:00 AM</b> Stand-up with the team</span></div>
+                    <ul class="later">
+                      <li><span>11:30 AM</span>Send the project invoice</li>
+                      <li><span>1:00 PM</span>Lunch with Riya</li>
+                      <li><span>4:00 PM</span>Dentist</li>
+                    </ul>
+                    <div class="bring">Bring 2 to today</div>
+                  </div>
+                </div>
+
+                <!-- 1: Reminder notification -->
+                <div class="screen s-remind" data-screen="1">
+                  <div class="lock-time">10:50</div>
+                  <div class="lock-date">Friday, November 27</div>
+                  <div class="notif">
+                    <div class="n-head"><img src="icons/app-icon-192.png" alt="" width="18" height="18"><span>Blip</span><small>now</small></div>
+                    <b>Stand-up with the team</b>
+                    <p>In 10 minutes · 11:00 AM</p>
+                    <div class="n-actions"><span class="n-done">Done</span><span>Snooze</span></div>
+                  </div>
+                  <div class="notif ghost">
+                    <div class="n-head"><span class="dot"></span><span>Messages</span><small>9m</small></div>
+                    <b>Riya</b><p>See you at 1!</p>
+                  </div>
+                </div>
+
+                <!-- 2: Share into Blip -->
+                <div class="screen s-share" data-screen="2">
+                  <div class="chat">
+                    <div class="chat-head"><span class="c-av">R</span><b>Riya</b></div>
+                    <div class="bubble">Can you book the venue for Saturday before 5? 🙏</div>
+                    <div class="bubble me">On it</div>
+                  </div>
+                  <div class="sheet">
+                    <small>Share to</small>
+                    <div class="share-row">
+                      <div class="sh-app hl"><img src="icons/app-icon-192.png" alt="" width="40" height="40"><span>Blip</span></div>
+                      <div class="sh-app"><i class="g1"></i><span>Drive</span></div>
+                      <div class="sh-app"><i class="g2"></i><span>Gmail</span></div>
+                      <div class="sh-app"><i class="g3"></i><span>Notes</span></div>
+                    </div>
+                  </div>
+                  <div class="saved">
+                    <span class="chk"></span>
+                    <div><b>Book the venue</b><small>Saturday · before 5:00 PM</small></div>
+                    <span class="saved-pill">Saved</span>
+                  </div>
+                </div>
+
+                <!-- 3: Day summary -->
+                <div class="screen s-summary" data-screen="3">
+                  <p class="sc-hello">Good evening · Friday</p>
+                  <div class="glow-pill"><span class="moon-ico"></span>Your day summary</div>
+                  <div class="sc-card">
+                    <div class="ring-row">
+                      <svg class="ring" viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="32"/><circle class="ring-val" cx="40" cy="40" r="32"/></svg>
+                      <div><b class="sum-big">4 of 5 done</b><small>A solid day. One left for tomorrow.</small></div>
+                    </div>
+                    <ul class="done-list">
+                      <li class="ok">Stand-up with the team</li>
+                      <li class="ok">Send the project invoice</li>
+                      <li class="ok">Lunch with Riya</li>
+                      <li class="ok">Book the venue</li>
+                      <li>Dentist</li>
+                    </ul>
+                    <div class="sum-actions"><span class="primary">Move 1 to tomorrow</span><span>Hide for today</span></div>
+                  </div>
+                </div>
+
+                <div class="ps-tabs" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Feature bento ===== -->
+    <section class="section" id="features">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Features</p>
+          <h2>Small app.<br>Thought through.</h2>
+        </div>
+
+        <div class="bento">
+          <article class="tile t-sort reveal" style="--d:0" tabindex="0">
+            <div class="tile-copy"><h3>Sort your way</h3><p>Priority, time, newest or A to Z. Blip remembers your pick on every device.</p></div>
+            <div class="sort-demo" aria-hidden="true">
+              <div class="sort-btn"><svg viewBox="0 0 24 24"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4"/></svg><span id="sort-label">Priority</span></div>
+              <ul class="sort-list" id="sort-list">
+                <li data-p="1" data-t="3" data-n="2" data-a="2"><i class="p-hi"></i>Return earphone case<em>4:00 PM</em></li>
+                <li data-p="2" data-t="1" data-n="3" data-a="3"><i class="p-md"></i>Session with Aparna<em>11:15 AM</em></li>
+                <li data-p="3" data-t="2" data-n="1" data-a="1"><i class="p-lo"></i>Buy groceries<em>1:30 PM</em></li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="tile t-notes reveal" style="--d:1">
+            <div class="tile-copy"><h3>Notes that tidy themselves</h3><p>Dictate a list and Blip turns it into bullets.</p></div>
+            <div class="note-demo" aria-hidden="true">
+              <b>Packing for Goa</b>
+              <ul><li>Sunscreen</li><li>Charger</li><li>Two shirts</li><li>Passport</li></ul>
+            </div>
+          </article>
+
+          <article class="tile t-fix reveal" style="--d:2">
+            <div class="tile-copy"><h3>Change your mind mid-sentence</h3><p>“At 7, no wait, 8.” Blip keeps the 8.</p></div>
+            <div class="fix-demo" aria-hidden="true"><span class="strike">7:00 PM</span><span class="arrow">→</span><span class="keep">8:00 PM</span></div>
+          </article>
+
+          <article class="tile t-sync reveal" style="--d:0">
+            <div class="tile-copy"><h3>On every screen you own</h3><p>Phone, tablet and laptop stay in step. Sign in once and your tasks follow you.</p></div>
+            <div class="devices" aria-hidden="true">
+              <span class="dev laptop"></span><span class="dev tablet"></span><span class="dev phone-d"></span>
+              <span class="pulse-line"></span>
+            </div>
+          </article>
+
+          <article class="tile t-short reveal" style="--d:1">
+            <div class="tile-copy"><h3>Shortcuts on your home screen</h3><p>Long-press the Blip icon for a voice task, a note or tomorrow's plan.</p></div>
+            <div class="short-demo" aria-hidden="true">
+              <img src="icons/app-icon-192.png" alt="" width="52" height="52">
+              <ul><li>New voice task</li><li>Plan tomorrow</li><li>Summarize today</li><li>New note</li></ul>
+            </div>
+          </article>
+
+          <article class="tile t-tones reveal" style="--d:2">
+            <div class="tile-copy"><h3>Tones that get you moving</h3><p>Marimba, Pulse, Escalate and more, with a buzz on your phone.</p></div>
+            <div class="tones" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Models ===== -->
+    <section class="section models" id="models">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Pick your Blip</p>
+          <h2>As simple or as smart<br>as you like.</h2>
+          <p class="section-lede">Switch models any time from the composer. Blip 2.3 is the full experience.</p>
+        </div>
+
+        <div class="tier-switch reveal" role="tablist" aria-label="Blip models">
+          <span class="tier-thumb" aria-hidden="true"></span>
+          <button role="tab" data-tier="0" aria-selected="false">Blip 1.0</button>
+          <button role="tab" data-tier="1" aria-selected="false">Blip 2.0</button>
+          <button role="tab" data-tier="2" aria-selected="true" class="on">Blip 2.3</button>
+        </div>
+
+        <div class="tier-card reveal" id="tier-card" data-tier="2">
+          <div class="tier-head">
+            <div><h3 id="tier-name">Blip 2.3</h3><p id="tier-desc">Everything Blip can do. Your full morning plan and evening summary.</p></div>
+            <span class="tier-badge">Recommended</span>
+          </div>
+          <ul class="tier-list">
+            <li data-min="0">Voice to-dos and reminders</li>
+            <li data-min="0">Done and Snooze from notifications</li>
+            <li data-min="0">Notes</li>
+            <li data-min="1">Short morning plan and day summary</li>
+            <li data-min="1">Summarize today and move unfinished</li>
+            <li data-min="1">Bullet lists from dictation</li>
+            <li data-min="2">Full morning plan and day summary</li>
+            <li data-min="2">Plan tomorrow</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Install ===== -->
+    <section class="section install" id="install">
+      <div class="wrap install-grid">
+        <div class="reveal">
+          <p class="kicker">Install</p>
+          <h2>No app store.<br>Just add it.</h2>
+          <p class="section-lede">Blip installs straight from your browser and opens like any other app, with its own icon and notifications.</p>
+          <a class="btn btn-primary btn-lg" href="https://app.blip.akshayashokanpothan.com/" data-app>Open Blip to install</a>
+        </div>
+        <ol class="install-steps reveal" style="--d:1">
+          <li><b>Android and desktop</b><span>Open Blip in Chrome and tap Install, or choose Add to Home screen from the menu.</span></li>
+          <li><b>iPhone and iPad</b><span>Open Blip in Safari, tap Share, then Add to Home Screen.</span></li>
+          <li><b>Allow notifications</b><span>So reminders reach you, even with Blip closed.</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== Final CTA ===== -->
+    <section class="final">
+      <div class="final-glow" aria-hidden="true"></div>
+      <div class="wrap final-inner reveal">
+        <svg class="final-mark" viewBox="0 0 240 240" aria-hidden="true">
+          <path class="m-bubble" d="M48 38 H154 C174 38 188 52 188 72 V142 C188 162 174 176 154 176 H91 L57 204 C48 211 38 205 38 195 V176 H48 C28 176 14 162 14 142 V72 C14 52 28 38 48 38 Z"/>
+          <g class="m-bars"><rect x="49" y="101" width="13" height="32" rx="6.5"/><rect x="76" y="83" width="13" height="68" rx="6.5"/><rect x="103" y="64" width="13" height="106" rx="6.5"/><rect x="130" y="91" width="13" height="52" rx="6.5"/></g>
+          <circle class="m-dot" cx="175" cy="43" r="35"/>
+          <path class="m-tick" d="M158 43 L169 54 L191 31"/>
+        </svg>
+        <h2>Your day, out loud.</h2>
+        <p class="section-lede">Say your first task. Blip takes it from there.</p>
+        <a class="btn btn-primary btn-lg magnetic" href="https://app.blip.akshayashokanpothan.com/" data-app>Open Blip</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-inner">
+      <div class="foot-brand">
+        <span class="word">blip</span>
+        <span class="foot-credit">Blip AI by Akshay Ashokan Pothan</span>
+      </div>
+      <nav class="foot-links" aria-label="Footer">
+        <a href="#how">How it works</a>
+        <a href="#features">Features</a>
+        <a href="#models">Models</a>
+        <a href="https://app.blip.akshayashokanpothan.com/" data-app>Open Blip</a>
+      </nav>
+      <span class="foot-ver">Blip 2.3</span>
+    </div>
+  </footer>
+
+  <script src="landing.js" defer></script>
+</body>
+</html>

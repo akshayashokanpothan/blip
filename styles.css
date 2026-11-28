@@ -1111,3 +1111,9 @@ html[data-view="task"] .fab, html[data-view="note"] .fab, html[data-view="settin
 @media (prefers-reduced-motion: reduce) {
   .morning-plan.fresh:not(.open), .morning-plan.building .ds-spark { animation: none; }
 }
+
+/* "Blip has a new home" sheet, shown on the old address during the move. */
+.moved-sync { margin: 0 0 16px; padding: 10px 12px; border-radius: var(--r-field); background: var(--soft); font-size: 14px; line-height: 1.45; }
+.moved-sync.warn { color: var(--red); }
+.moved-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.moved-actions .btn { text-align: center; text-decoration: none; }
